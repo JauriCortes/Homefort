@@ -3,7 +3,7 @@ import { useState } from "react";
 import { Plus } from "lucide-react";
 import { store, formatCOP } from "@/lib/store";
 import { useStore, useUsuarioActivo } from "@/hooks/use-store";
-import { PageHeader, EmptyState, ErrorBanner, SuccessBanner } from "@/components/ui-bits";
+import { PageHeader, EmptyState, SuccessBanner } from "@/components/ui-bits";
 import { Button, Field, TextInput, Select } from "@/components/form-bits";
 
 export const Route = createFileRoute("/compras/ordenes")({
@@ -18,19 +18,31 @@ function OrdenesCompraPage() {
   const materiales = useStore((s) => s.materialesBase);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ proyectoId: "", proveedorId: "", fechaEntregaEstimada: "", notas: "" });
-  const [error, setError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [ok, setOk] = useState<string | null>(null);
   const [pendingChange, setPendingChange] = useState<{ id: string; estado: string } | null>(null);
+  const [busqueda, setBusqueda] = useState("");
   const puedeEditar = usuario.esAdmin || usuario.areas.includes("compras");
+
+  const ordenesFiltradas = ordenes.filter((o) => {
+    if (!busqueda) return true;
+    const q = busqueda.toLowerCase();
+    const proy = proyectos.find((p) => p.id === o.proyectoId);
+    return o.codigo.toLowerCase().includes(q) || (proy?.codigo.toLowerCase().includes(q) ?? false);
+  });
 
   const guardar = (e: React.FormEvent) => {
     e.preventDefault();
-    setError(null);
-    if (!form.proyectoId || !form.proveedorId || !form.fechaEntregaEstimada) return setError("Completa todos los campos obligatorios.");
+    const fieldErrs: Record<string, string> = {};
+    if (!form.proyectoId) fieldErrs.proyectoId = "Selecciona un proyecto.";
+    if (!form.proveedorId) fieldErrs.proveedorId = "Selecciona un proveedor.";
+    if (!form.fechaEntregaEstimada) fieldErrs.fechaEntregaEstimada = "Ingresa la fecha de entrega estimada.";
+    if (Object.keys(fieldErrs).length > 0) return setFieldErrors(fieldErrs);
     store.crearOrdenCompra({ proyectoId: form.proyectoId, proveedorId: form.proveedorId, fechaEntregaEstimada: form.fechaEntregaEstimada, items: [], notas: form.notas || undefined });
     setOk("Orden de compra creada.");
     setShowForm(false);
     setForm({ proyectoId: "", proveedorId: "", fechaEntregaEstimada: "", notas: "" });
+    setFieldErrors({});
     setTimeout(() => setOk(null), 2500);
   };
 
@@ -42,23 +54,34 @@ function OrdenesCompraPage() {
         actions={puedeEditar ? <Button onClick={() => setShowForm((v) => !v)}><Plus className="h-4 w-4" /> {showForm ? "Cancelar" : "Nueva orden"}</Button> : undefined}
       />
       {ok && <SuccessBanner>{ok}</SuccessBanner>}
+      <div className="mb-3 flex items-center gap-2">
+        <input
+          type="search"
+          placeholder="Buscar por código de orden o proyecto…"
+          value={busqueda}
+          onChange={(e) => setBusqueda(e.target.value)}
+          className="w-full max-w-xs rounded-md border border-border bg-surface px-3 py-1.5 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring/30"
+        />
+        {busqueda && (
+          <span className="text-xs text-muted-foreground">{ordenesFiltradas.length} resultado(s)</span>
+        )}
+      </div>
       {showForm && (
         <form onSubmit={guardar} className="mb-4 space-y-4 rounded-lg border border-border bg-surface p-4">
-          {error && <ErrorBanner>{error}</ErrorBanner>}
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Proyecto" required>
+            <Field label="Proyecto" required error={fieldErrors.proyectoId}>
               <Select value={form.proyectoId} onChange={(e) => setForm({ ...form, proyectoId: e.target.value })}>
                 <option value="">Selecciona...</option>
                 {proyectos.map((p) => <option key={p.id} value={p.id}>{p.codigo} - {p.tipo}</option>)}
               </Select>
             </Field>
-            <Field label="Proveedor" required>
+            <Field label="Proveedor" required error={fieldErrors.proveedorId}>
               <Select value={form.proveedorId} onChange={(e) => setForm({ ...form, proveedorId: e.target.value })}>
                 <option value="">Selecciona...</option>
                 {proveedores.map((p) => <option key={p.id} value={p.id}>{p.nombre}</option>)}
               </Select>
             </Field>
-            <Field label="Fecha entrega estimada" required>
+            <Field label="Fecha entrega estimada" required error={fieldErrors.fechaEntregaEstimada}>
               <TextInput type="date" value={form.fechaEntregaEstimada} onChange={(e) => setForm({ ...form, fechaEntregaEstimada: e.target.value })} />
             </Field>
             <Field label="Notas">
@@ -71,8 +94,11 @@ function OrdenesCompraPage() {
           </div>
         </form>
       )}
-      {ordenes.length === 0 ? (
-        <EmptyState title="Sin ordenes de compra" description="Crea la primera orden." />
+      {ordenesFiltradas.length === 0 ? (
+        <EmptyState
+          title={busqueda ? "Sin resultados" : "Sin órdenes de compra"}
+          description={busqueda ? `No hay órdenes que coincidan con "${busqueda}".` : "Crea la primera orden."}
+        />
       ) : (
         <div className="overflow-hidden rounded-lg border border-border bg-surface">
           <table className="w-full text-sm">
@@ -86,7 +112,7 @@ function OrdenesCompraPage() {
               </tr>
             </thead>
             <tbody>
-              {ordenes.map((o) => {
+              {ordenesFiltradas.map((o) => {
                 const proy = proyectos.find((p) => p.id === o.proyectoId);
                 const prov = proveedores.find((p) => p.id === o.proveedorId);
                 return (
