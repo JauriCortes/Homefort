@@ -39,7 +39,8 @@ function KanbanPage() {
                       onClick={() => navigate({ to: "/seguimiento/$id", params: { id: p.id } })}
                     >
                       <div className="text-sm font-medium">{p.codigo}</div>
-                      <div className="text-xs text-muted-foreground">{p.tipo}</div>
+                      <span className={`mt-1 inline-block rounded-full px-2 py-0.5 text-[10px] font-medium ${ESTADO_COLORS[p.estado]}`}>{p.estado}</span>
+                      <div className="text-xs font-medium text-foreground/80">{p.tipo}</div>
                       <div className="mt-1 text-xs text-foreground">{cliente?.nombre ?? "Cliente eliminado"}</div>
                       <div className="mt-1 text-[11px] text-muted-foreground">{p.ultimaActualizacion}</div>
                     </div>

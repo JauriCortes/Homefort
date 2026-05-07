@@ -103,17 +103,19 @@ function LoginPage() {
           </div>
         </form>
 
-        <div className="mt-4">
-          <InfoBanner>
-            <div className="space-y-1 text-xs">
-              <div className="font-medium">Usuarios de demostración:</div>
-              <div>· laura@homefort.co / comercial123</div>
-              <div>· carlos@homefort.co / compras123</div>
-              <div>· maria@homefort.co / produccion123</div>
-              <div>· andres@homefort.co / admin123 (Admin)</div>
-            </div>
-          </InfoBanner>
-        </div>
+        {import.meta.env.DEV && (
+          <div className="mt-4">
+            <InfoBanner>
+              <div className="space-y-1 text-xs">
+                <div className="font-medium">Usuarios de demostración:</div>
+                <div>· laura@homefort.co / comercial123</div>
+                <div>· carlos@homefort.co / compras123</div>
+                <div>· maria@homefort.co / produccion123</div>
+                <div>· andres@homefort.co / admin123 (Admin)</div>
+              </div>
+            </InfoBanner>
+          </div>
+        )}
 
         <p className="mt-4 text-center text-[11px] text-muted-foreground">
           Tras 5 intentos fallidos la cuenta se bloquea 15 minutos. La sesión expira tras 30
