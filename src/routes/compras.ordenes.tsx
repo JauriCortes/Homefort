@@ -20,6 +20,7 @@ function OrdenesCompraPage() {
   const [form, setForm] = useState({ proyectoId: "", proveedorId: "", fechaEntregaEstimada: "", notas: "" });
   const [error, setError] = useState<string | null>(null);
   const [ok, setOk] = useState<string | null>(null);
+  const [pendingChange, setPendingChange] = useState<{ id: string; estado: string } | null>(null);
   const puedeEditar = usuario.esAdmin || usuario.areas.includes("compras");
 
   const guardar = (e: React.FormEvent) => {
@@ -36,8 +37,8 @@ function OrdenesCompraPage() {
   return (
     <div>
       <PageHeader
-        title="Ordenes de compra"
-        crumbs={[{ label: "Compras" }, { label: "Ordenes" }]}
+        title="Órdenes de compra"
+        crumbs={[{ label: "Compras" }, { label: "Órdenes" }]}
         actions={puedeEditar ? <Button onClick={() => setShowForm((v) => !v)}><Plus className="h-4 w-4" /> {showForm ? "Cancelar" : "Nueva orden"}</Button> : undefined}
       />
       {ok && <SuccessBanner>{ok}</SuccessBanner>}
@@ -95,7 +96,18 @@ function OrdenesCompraPage() {
                     <td className="px-3 py-2 text-muted-foreground">{prov?.nombre ?? o.proveedorId}</td>
                     <td className="px-3 py-2 text-muted-foreground">{o.fechaEntregaEstimada}</td>
                     <td className="px-3 py-2">
-                      <select value={o.estado} onChange={(ev) => store.actualizarOrdenCompra(o.id, { estado: ev.target.value as any })} className="rounded border border-border bg-surface px-2 py-0.5 text-xs">
+                      <select
+                        value={o.estado}
+                        onChange={(ev) => {
+                          const next = ev.target.value;
+                          if (next === "cancelada") {
+                            setPendingChange({ id: o.id, estado: next });
+                          } else {
+                            store.actualizarOrdenCompra(o.id, { estado: next as any });
+                          }
+                        }}
+                        className="rounded border border-border bg-surface px-2 py-0.5 text-xs"
+                      >
                         <option value="borrador">Borrador</option>
                         <option value="enviada">Enviada</option>
                         <option value="recibida">Recibida</option>
@@ -107,6 +119,33 @@ function OrdenesCompraPage() {
               })}
             </tbody>
           </table>
+        </div>
+      )}
+      {pendingChange && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="w-full max-w-sm rounded-lg border border-border bg-surface p-5 shadow-xl">
+            <h2 className="text-sm font-semibold text-foreground">¿Cancelar orden de compra?</h2>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Esta acción cambiará el estado a <strong>Cancelada</strong>. No podrá revertirse fácilmente.
+            </p>
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                onClick={() => setPendingChange(null)}
+                className="rounded-md border border-border px-3 py-1.5 text-sm hover:bg-muted"
+              >
+                Mantener estado
+              </button>
+              <button
+                onClick={() => {
+                  store.actualizarOrdenCompra(pendingChange.id, { estado: pendingChange.estado as any });
+                  setPendingChange(null);
+                }}
+                className="rounded-md bg-destructive px-3 py-1.5 text-sm text-destructive-foreground hover:bg-destructive/90"
+              >
+                Sí, cancelar orden
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
