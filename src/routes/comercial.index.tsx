@@ -1,12 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import {
-  Briefcase,
-  Users,
-  FolderKanban,
-  PlusCircle,
-  ArrowRight,
-} from "lucide-react";
-import { useStore, useUsuarioActivo } from "@/hooks/use-store";
+import { Briefcase, Users, FolderKanban, PlusCircle, ArrowRight } from "lucide-react";
+import { useMe } from "@/hooks/api/use-auth";
+import { useClientes, useProyectos } from "@/hooks/api/use-comercial";
 import { PageHeader, EstadoBadge, TipoClienteBadge } from "@/components/ui-bits";
 import { AREAS_LABEL } from "@/lib/store";
 
@@ -15,9 +10,9 @@ export const Route = createFileRoute("/comercial/")({
 });
 
 function ResumenComercial() {
-  const usuario = useUsuarioActivo();
-  const clientes = useStore((s) => s.clientes);
-  const proyectos = useStore((s) => s.proyectos);
+  const { data: usuario } = useMe();
+  const { data: clientes = [] } = useClientes();
+  const { data: proyectos = [] } = useProyectos();
 
   const porEstado = proyectos.reduce<Record<string, number>>((acc, p) => {
     acc[p.estado] = (acc[p.estado] ?? 0) + 1;
@@ -32,7 +27,7 @@ function ResumenComercial() {
     <div>
       <PageHeader
         title="Resumen comercial"
-        description={`Hola, ${usuario.nombre}. Vista general del área ${AREAS_LABEL.comercial}.`}
+        description={`Hola, ${usuario?.nombre ?? "…"}. Vista general del área ${AREAS_LABEL.comercial}.`}
         crumbs={[{ label: "Comercial" }, { label: "Resumen" }]}
         actions={
           <>

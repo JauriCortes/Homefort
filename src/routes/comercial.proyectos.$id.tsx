@@ -12,13 +12,22 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import { z } from "zod";
-import { useStore, useUsuarioActivo } from "@/hooks/use-store";
+import { useMe } from "@/hooks/api/use-auth";
 import {
-  store,
+  useCliente,
+  useProyecto,
+  useActualizarEstadoProyecto,
+  useAgregarEspecificacion,
+  useAgregarCotizacion,
+  useAgregarCambio,
+} from "@/hooks/api/use-comercial";
+import { useStore } from "@/hooks/use-store";
+import {
   TRANSICIONES,
   formatCOP,
   type EstadoProyecto,
   type CotizacionItem,
+  type Proyecto,
   calcularTotalCotizacion,
 } from "@/lib/store";
 import {
@@ -34,9 +43,7 @@ import {
 import { Field, TextInput, TextArea, Select, Button } from "@/components/form-bits";
 
 const searchSchema = z.object({
-  tab: z
-    .enum(["resumen", "especificaciones", "cotizaciones", "cambios"])
-    .optional(),
+  tab: z.enum(["resumen", "especificaciones", "cotizaciones", "cambios"]).optional(),
 });
 
 export const Route = createFileRoute("/comercial/proyectos/$id")({
@@ -46,14 +53,9 @@ export const Route = createFileRoute("/comercial/proyectos/$id")({
 
 function ProyectoDetalle() {
   const { id } = Route.useParams();
-  const search = Route.useSearch();
-  const navigate = useNavigate();
-  const usuario = useUsuarioActivo();
-  const proyecto = useStore((s) => s.proyecto(id));
-  const cliente = useStore((s) => (proyecto ? s.cliente(proyecto.clienteId) : undefined));
-  const puedeEditar = usuario.esAdmin || usuario.areas.includes("comercial");
+  const { data: proyecto, isLoading } = useProyecto(id);
 
-  const tab = search.tab ?? "resumen";
+  if (isLoading) return null;
 
   if (!proyecto) {
     return (
@@ -70,8 +72,23 @@ function ProyectoDetalle() {
     );
   }
 
+  return <ProyectoDetalleInner proyecto={proyecto} />;
+}
+
+function ProyectoDetalleInner({ proyecto }: { proyecto: Proyecto }) {
+  const search = Route.useSearch();
+  const navigate = useNavigate();
+  const { data: usuario } = useMe();
+  const { data: cliente } = useCliente(proyecto.clienteId);
+  const puedeEditar = (usuario?.esAdmin || usuario?.areas.includes("comercial")) ?? false;
+
+  const tab = search.tab ?? "resumen";
   const setTab = (t: NonNullable<z.infer<typeof searchSchema>["tab"]>) =>
-    navigate({ to: "/comercial/proyectos/$id", params: { id }, search: { tab: t } });
+    navigate({
+      to: "/comercial/proyectos/$id",
+      params: { id: proyecto.id },
+      search: { tab: t },
+    });
 
   const especActual = proyecto.especificaciones[proyecto.especificaciones.length - 1];
   const especComplete =
@@ -100,7 +117,6 @@ function ProyectoDetalle() {
         }
       />
 
-      {/* Encabezado del proyecto */}
       <div className="mb-4 grid gap-3 md:grid-cols-3">
         <div className="rounded-lg border border-border bg-surface p-4">
           <div className="text-xs uppercase tracking-wide text-muted-foreground">Cliente</div>
@@ -125,7 +141,7 @@ function ProyectoDetalle() {
             <EstadoBadge estado={proyecto.estado} />
           </div>
           {puedeEditar ? (
-            <CambiarEstadoSelect proyectoId={proyecto.id} />
+            <CambiarEstadoSelect proyectoId={proyecto.id} estadoActual={proyecto.estado} />
           ) : (
             <div className="mt-2 text-xs text-muted-foreground">
               Solo Comercial puede cambiar el estado.
@@ -142,7 +158,6 @@ function ProyectoDetalle() {
         </div>
       </div>
 
-      {/* Tabs */}
       <div className="mb-4 flex flex-wrap gap-1 border-b border-border">
         <TabBtn active={tab === "resumen"} onClick={() => setTab("resumen")} icon={Layers}>
           Resumen
@@ -189,9 +204,7 @@ function ProyectoDetalle() {
       {tab === "cotizaciones" && (
         <CotizacionesTab proyectoId={proyecto.id} puedeEditar={puedeEditar} />
       )}
-      {tab === "cambios" && (
-        <CambiosTab proyectoId={proyecto.id} puedeEditar={puedeEditar} />
-      )}
+      {tab === "cambios" && <CambiosTab proyectoId={proyecto.id} puedeEditar={puedeEditar} />}
     </div>
   );
 }
@@ -222,17 +235,21 @@ function TabBtn({
   );
 }
 
-function CambiarEstadoSelect({ proyectoId }: { proyectoId: string }) {
-  const proyecto = useStore((s) => s.proyecto(proyectoId))!;
+function CambiarEstadoSelect({
+  proyectoId,
+  estadoActual,
+}: {
+  proyectoId: string;
+  estadoActual: EstadoProyecto;
+}) {
+  const actualizarEstado = useActualizarEstadoProyecto(proyectoId);
   const [error, setError] = useState<string | null>(null);
   const [ok, setOk] = useState<string | null>(null);
-  const opciones = TRANSICIONES[proyecto.estado];
+  const opciones = TRANSICIONES[estadoActual] ?? [];
 
   if (opciones.length === 0) {
     return (
-      <div className="mt-2 text-xs text-muted-foreground">
-        El proyecto está en un estado final.
-      </div>
+      <div className="mt-2 text-xs text-muted-foreground">El proyecto está en un estado final.</div>
     );
   }
 
@@ -243,18 +260,21 @@ function CambiarEstadoSelect({ proyectoId }: { proyectoId: string }) {
         <Select
           className="h-8 py-1 text-xs"
           defaultValue=""
+          disabled={actualizarEstado.isPending}
           onChange={(e) => {
             const next = e.target.value as EstadoProyecto;
             if (!next) return;
-            try {
-              store.actualizarEstadoProyecto(proyecto.id, next);
-              setOk(`Estado actualizado a "${next}".`);
-              setError(null);
-              setTimeout(() => setOk(null), 2500);
-              e.target.value = "";
-            } catch {
-              setError("No se pudo cambiar el estado. Intenta nuevamente.");
-            }
+            actualizarEstado.mutate(next, {
+              onSuccess: () => {
+                setOk(`Estado actualizado a "${next}".`);
+                setError(null);
+                setTimeout(() => setOk(null), 2500);
+                e.target.value = "";
+              },
+              onError: () => {
+                setError("No se pudo cambiar el estado. Intenta nuevamente.");
+              },
+            });
           }}
         >
           <option value="">Selecciona…</option>
@@ -276,8 +296,8 @@ function ResumenTab({
   ultimaCot,
   totalCambios,
 }: {
-  ultimaEspec?: ReturnType<typeof Object> | any;
-  ultimaCot?: ReturnType<typeof Object> | any;
+  ultimaEspec?: Proyecto["especificaciones"][0];
+  ultimaCot?: Proyecto["cotizaciones"][0];
   totalCambios: number;
 }) {
   return (
@@ -288,11 +308,18 @@ function ResumenTab({
         </h3>
         {ultimaEspec ? (
           <ul className="space-y-1 text-sm">
-            <li><span className="text-muted-foreground">Medidas:</span> {ultimaEspec.medidas}</li>
-            <li><span className="text-muted-foreground">Materiales:</span> {ultimaEspec.materiales}</li>
-            <li><span className="text-muted-foreground">Acabados:</span> {ultimaEspec.acabados}</li>
+            <li>
+              <span className="text-muted-foreground">Medidas:</span> {ultimaEspec.medidas}
+            </li>
+            <li>
+              <span className="text-muted-foreground">Materiales:</span> {ultimaEspec.materiales}
+            </li>
+            <li>
+              <span className="text-muted-foreground">Acabados:</span> {ultimaEspec.acabados}
+            </li>
             <li className="text-xs text-muted-foreground">
-              Versión {ultimaEspec.version} · {ultimaEspec.actualizadoEn} · {ultimaEspec.actualizadoPor}
+              Versión {ultimaEspec.version} · {ultimaEspec.actualizadoEn} ·{" "}
+              {ultimaEspec.actualizadoPor}
             </li>
           </ul>
         ) : (
@@ -338,9 +365,10 @@ function EspecificacionesTab({
   proyectoId: string;
   puedeEditar: boolean;
 }) {
-  const proyecto = useStore((s) => s.proyecto(proyectoId))!;
-  const usuario = useUsuarioActivo();
-  const ultima = proyecto.especificaciones[proyecto.especificaciones.length - 1];
+  const { data: proyecto } = useProyecto(proyectoId);
+  const { data: usuario } = useMe();
+  const agregarEspecificacion = useAgregarEspecificacion(proyectoId);
+  const ultima = proyecto?.especificaciones[proyecto.especificaciones.length - 1];
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState({
     medidas: ultima?.medidas ?? "",
@@ -351,30 +379,36 @@ function EspecificacionesTab({
   const [error, setError] = useState<string | null>(null);
   const [ok, setOk] = useState<string | null>(null);
 
+  if (!proyecto) return null;
+
   const guardar = (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setOk(null);
     if (!puedeEditar) return setError("No tienes permisos.");
     if (!form.medidas.trim() || !form.materiales.trim() || !form.acabados.trim()) {
-      return setError(
-        "Completa medidas, materiales y acabados. Las observaciones son opcionales.",
-      );
+      return setError("Completa medidas, materiales y acabados. Las observaciones son opcionales.");
     }
-    store.agregarEspecificacion(proyecto.id, {
-      medidas: form.medidas.trim(),
-      materiales: form.materiales.trim(),
-      acabados: form.acabados.trim(),
-      observaciones: form.observaciones.trim(),
-      actualizadoEn: new Date().toISOString().slice(0, 10),
-      actualizadoPor: usuario.nombre,
-    });
-    setOk(
-      ultima
-        ? "Nueva versión de la especificación guardada."
-        : "Especificación inicial registrada.",
+    agregarEspecificacion.mutate(
+      {
+        medidas: form.medidas.trim(),
+        materiales: form.materiales.trim(),
+        acabados: form.acabados.trim(),
+        observaciones: form.observaciones.trim(),
+        actualizadoPor: usuario?.nombre ?? "—",
+      },
+      {
+        onSuccess: () => {
+          setOk(
+            ultima
+              ? "Nueva versión de la especificación guardada."
+              : "Especificación inicial registrada.",
+          );
+          setEditing(false);
+        },
+        onError: () => setError("No se pudo guardar la especificación."),
+      },
     );
-    setEditing(false);
   };
 
   return (
@@ -393,9 +427,7 @@ function EspecificacionesTab({
                 <Plus className="h-4 w-4" /> Registrar especificaciones
               </Button>
             ) : (
-              <span className="text-xs text-muted-foreground">
-                Sin permisos para registrar.
-              </span>
+              <span className="text-xs text-muted-foreground">Sin permisos para registrar.</span>
             )
           }
         />
@@ -411,7 +443,19 @@ function EspecificacionesTab({
               </p>
             </div>
             {puedeEditar ? (
-              <Button variant="secondary" size="sm" onClick={() => setEditing(true)}>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => {
+                  setForm({
+                    medidas: ultima.medidas,
+                    materiales: ultima.materiales,
+                    acabados: ultima.acabados,
+                    observaciones: ultima.observaciones,
+                  });
+                  setEditing(true);
+                }}
+              >
                 <Pencil className="h-3.5 w-3.5" /> Nueva versión
               </Button>
             ) : (
@@ -442,8 +486,7 @@ function EspecificacionesTab({
           className="space-y-4 rounded-lg border border-border bg-surface p-4"
         >
           <InfoBanner>
-            Los cambios crean una nueva versión. La especificación anterior queda en el
-            historial.
+            Los cambios crean una nueva versión. La especificación anterior queda en el historial.
           </InfoBanner>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Field label="Medidas" required>
@@ -479,12 +522,13 @@ function EspecificacionesTab({
             <Button variant="secondary" type="button" onClick={() => setEditing(false)}>
               Cancelar
             </Button>
-            <Button type="submit">Guardar versión</Button>
+            <Button type="submit" disabled={agregarEspecificacion.isPending}>
+              {agregarEspecificacion.isPending ? "Guardando…" : "Guardar versión"}
+            </Button>
           </div>
         </form>
       )}
 
-      {/* Historial de versiones */}
       {proyecto.especificaciones.length > 1 && (
         <div className="mt-6 rounded-lg border border-border bg-surface">
           <header className="border-b border-border px-4 py-3">
@@ -503,11 +547,19 @@ function EspecificacionesTab({
                     </span>
                   </div>
                   <div className="mt-1 grid gap-1 text-xs text-muted-foreground sm:grid-cols-2">
-                    <div><b>Medidas:</b> {e.medidas}</div>
-                    <div><b>Materiales:</b> {e.materiales}</div>
-                    <div><b>Acabados:</b> {e.acabados}</div>
+                    <div>
+                      <b>Medidas:</b> {e.medidas}
+                    </div>
+                    <div>
+                      <b>Materiales:</b> {e.materiales}
+                    </div>
+                    <div>
+                      <b>Acabados:</b> {e.acabados}
+                    </div>
                     {e.observaciones && (
-                      <div className="sm:col-span-2"><b>Obs.:</b> {e.observaciones}</div>
+                      <div className="sm:col-span-2">
+                        <b>Obs.:</b> {e.observaciones}
+                      </div>
                     )}
                   </div>
                 </li>
@@ -541,9 +593,11 @@ function CotizacionesTab({
   proyectoId: string;
   puedeEditar: boolean;
 }) {
-  const proyecto = useStore((s) => s.proyecto(proyectoId))!;
+  const { data: proyecto } = useProyecto(proyectoId);
+  // materialesBase sigue en el store mientras Compras no se migre
   const materialesBase = useStore((s) => s.materialesBase);
-  const usuario = useUsuarioActivo();
+  const { data: usuario } = useMe();
+  const agregarCotizacion = useAgregarCotizacion(proyectoId);
   const [creating, setCreating] = useState(false);
   const [form, setForm] = useState({
     descripcion: "",
@@ -559,17 +613,15 @@ function CotizacionesTab({
     [form.items, form.margenPct],
   );
 
+  if (!proyecto) return null;
+
   const setItem = (i: number, patch: Partial<CotizacionItem>) => {
     setForm((f) => ({
       ...f,
       items: f.items.map((it, idx) => (idx === i ? { ...it, ...patch } : it)),
     }));
   };
-  const addItem = () =>
-    setForm((f) => ({
-      ...f,
-      items: [...f.items, crearItemVacio()],
-    }));
+  const addItem = () => setForm((f) => ({ ...f, items: [...f.items, crearItemVacio()] }));
   const removeItem = (i: number) =>
     setForm((f) => ({ ...f, items: f.items.filter((_, idx) => idx !== i) }));
 
@@ -582,24 +634,29 @@ function CotizacionesTab({
     if (form.items.length === 0 || form.items.every((i) => !i.descripcion.trim())) {
       return setError("Agrega al menos un ítem con descripción.");
     }
-    store.agregarCotizacion({
-      proyectoId: proyecto.id,
-      fecha: new Date().toISOString().slice(0, 10),
-      descripcion: form.descripcion.trim(),
-      items: form.items.filter((i) => i.descripcion.trim()),
-      margenPct: form.margenPct,
-      condicionesPago: form.condicionesPago,
-      total,
-      creadaPor: usuario.nombre,
-    });
-    setOk("Cotización creada y archivada en el historial.");
-    setCreating(false);
-    setForm({
-      descripcion: "",
-      margenPct: 25,
-      condicionesPago: "50% anticipo, 50% contra entrega",
-      items: [crearItemVacio()],
-    });
+    agregarCotizacion.mutate(
+      {
+        descripcion: form.descripcion.trim(),
+        items: form.items.filter((i) => i.descripcion.trim()),
+        margenPct: form.margenPct,
+        condicionesPago: form.condicionesPago,
+        total,
+        creadaPor: usuario?.nombre ?? "—",
+      },
+      {
+        onSuccess: () => {
+          setOk("Cotización creada y archivada en el historial.");
+          setCreating(false);
+          setForm({
+            descripcion: "",
+            margenPct: 25,
+            condicionesPago: "50% anticipo, 50% contra entrega",
+            items: [crearItemVacio()],
+          });
+        },
+        onError: () => setError("No se pudo guardar la cotización."),
+      },
+    );
   };
 
   return (
@@ -644,8 +701,8 @@ function CotizacionesTab({
               <div>
                 <span className="text-sm font-medium">Ítems</span>
                 <p className="text-xs text-muted-foreground">
-                  El costo de materiales se toma del catálogo base de Compras (cantidad ×
-                  costo unitario). Usa <i>Ítem personalizado</i> si no está en el catálogo.
+                  El costo de materiales se toma del catálogo base de Compras (cantidad × costo
+                  unitario). Usa <i>Ítem personalizado</i> si no está en el catálogo.
                 </p>
               </div>
               <Button type="button" variant="secondary" size="sm" onClick={addItem}>
@@ -655,14 +712,12 @@ function CotizacionesTab({
             <div className="space-y-2">
               {form.items.map((it, i) => {
                 const esCustom = it.materialBaseId === "__custom__";
-                const material = it.materialBaseId && it.materialBaseId !== "__custom__"
-                  ? materialesBase.find((m) => m.id === it.materialBaseId)
-                  : undefined;
+                const material =
+                  it.materialBaseId && it.materialBaseId !== "__custom__"
+                    ? materialesBase.find((m) => m.id === it.materialBaseId)
+                    : undefined;
                 return (
-                  <div
-                    key={i}
-                    className="rounded-md border border-border bg-surface-2 p-3"
-                  >
+                  <div key={i} className="rounded-md border border-border bg-surface-2 p-3">
                     <div className="grid grid-cols-1 gap-2 sm:grid-cols-12">
                       <div className="sm:col-span-7">
                         <label className="mb-1 block text-xs text-muted-foreground">
@@ -779,9 +834,7 @@ function CotizacionesTab({
                             type="number"
                             min={0}
                             value={it.materiales || ""}
-                            onChange={(e) =>
-                              setItem(i, { materiales: Number(e.target.value) })
-                            }
+                            onChange={(e) => setItem(i, { materiales: Number(e.target.value) })}
                           />
                         </div>
                       </div>
@@ -805,7 +858,8 @@ function CotizacionesTab({
                           Materiales: <b>{formatCOP(it.materiales || 0)}</b>
                           {(it.manoObra || 0) > 0 && (
                             <>
-                              {" "}· Mano obra: <b>{formatCOP(it.manoObra)}</b>
+                              {" "}
+                              · Mano obra: <b>{formatCOP(it.manoObra)}</b>
                             </>
                           )}
                         </div>
@@ -843,7 +897,9 @@ function CotizacionesTab({
             <Button variant="secondary" type="button" onClick={() => setCreating(false)}>
               Cancelar
             </Button>
-            <Button type="submit">Guardar cotización</Button>
+            <Button type="submit" disabled={agregarCotizacion.isPending}>
+              {agregarCotizacion.isPending ? "Guardando…" : "Guardar cotización"}
+            </Button>
           </div>
         </form>
       )}
@@ -916,15 +972,10 @@ function CotizacionesTab({
 
 /* ---------------- Cambios ---------------- */
 
-function CambiosTab({
-  proyectoId,
-  puedeEditar,
-}: {
-  proyectoId: string;
-  puedeEditar: boolean;
-}) {
-  const proyecto = useStore((s) => s.proyecto(proyectoId))!;
-  const usuario = useUsuarioActivo();
+function CambiosTab({ proyectoId, puedeEditar }: { proyectoId: string; puedeEditar: boolean }) {
+  const { data: proyecto } = useProyecto(proyectoId);
+  const { data: usuario } = useMe();
+  const agregarCambio = useAgregarCambio(proyectoId);
   const [adding, setAdding] = useState(false);
   const [form, setForm] = useState({
     descripcion: "",
@@ -934,23 +985,30 @@ function CambiosTab({
   const [error, setError] = useState<string | null>(null);
   const [ok, setOk] = useState<string | null>(null);
 
+  if (!proyecto) return null;
+
   const guardar = (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setOk(null);
     if (!puedeEditar) return setError("No tienes permisos.");
     if (!form.descripcion.trim()) return setError("Describe el cambio solicitado.");
-    store.agregarCambio({
-      proyectoId: proyecto.id,
-      fecha: new Date().toISOString().slice(0, 10),
-      descripcion: form.descripcion.trim(),
-      responsable: usuario.nombre,
-      impactoCosto: Number(form.impactoCosto) || 0,
-      impactoDias: Number(form.impactoDias) || 0,
-    });
-    setOk("Cambio registrado y visible para todas las áreas.");
-    setForm({ descripcion: "", impactoCosto: 0, impactoDias: 0 });
-    setAdding(false);
+    agregarCambio.mutate(
+      {
+        descripcion: form.descripcion.trim(),
+        responsable: usuario?.nombre ?? "—",
+        impactoCosto: Number(form.impactoCosto) || 0,
+        impactoDias: Number(form.impactoDias) || 0,
+      },
+      {
+        onSuccess: () => {
+          setOk("Cambio registrado y visible para todas las áreas.");
+          setForm({ descripcion: "", impactoCosto: 0, impactoDias: 0 });
+          setAdding(false);
+        },
+        onError: () => setError("No se pudo registrar el cambio."),
+      },
+    );
   };
 
   return (
@@ -1007,13 +1065,15 @@ function CambiosTab({
             </Field>
           </div>
           <div className="text-xs text-muted-foreground">
-            Responsable: <b>{usuario.nombre}</b> · Fecha: hoy
+            Responsable: <b>{usuario?.nombre ?? "—"}</b> · Fecha: hoy
           </div>
           <div className="flex flex-wrap justify-end gap-2">
             <Button variant="secondary" type="button" onClick={() => setAdding(false)}>
               Cancelar
             </Button>
-            <Button type="submit">Guardar cambio</Button>
+            <Button type="submit" disabled={agregarCambio.isPending}>
+              {agregarCambio.isPending ? "Guardando…" : "Guardar cambio"}
+            </Button>
           </div>
         </form>
       )}

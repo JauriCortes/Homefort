@@ -2,11 +2,9 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { ArrowLeft } from "lucide-react";
 import { z } from "zod";
-import { useStore, useUsuarioActivo } from "@/hooks/use-store";
-import {
-  store,
-  type TipoProyecto,
-} from "@/lib/store";
+import { useMe } from "@/hooks/api/use-auth";
+import { useClientes, useCrearProyecto } from "@/hooks/api/use-comercial";
+import type { TipoProyecto } from "@/lib/store";
 import {
   PageHeader,
   ErrorBanner,
@@ -36,10 +34,11 @@ const TIPOS: TipoProyecto[] = [
 
 function NuevoProyecto() {
   const search = Route.useSearch();
-  const usuario = useUsuarioActivo();
+  const { data: usuario } = useMe();
   const navigate = useNavigate();
-  const clientes = useStore((s) => s.clientes);
-  const puedeEditar = usuario.esAdmin || usuario.areas.includes("comercial");
+  const { data: clientes = [] } = useClientes();
+  const crearProyecto = useCrearProyecto();
+  const puedeEditar = (usuario?.esAdmin || usuario?.areas.includes("comercial")) ?? false;
 
   const [form, setForm] = useState({
     clienteId: search.clienteId ?? "",
@@ -83,9 +82,19 @@ function NuevoProyecto() {
     if (!puedeEditar) return setError("No tienes permisos para crear proyectos.");
     if (!form.clienteId) return setError("Selecciona un cliente para el proyecto.");
     if (!form.fechaSolicitud) return setError("La fecha de solicitud es obligatoria.");
-    const p = store.crearProyecto({ clienteId: form.clienteId, tipo: form.tipo, fechaSolicitud: form.fechaSolicitud });
-    setOkMsg("Proyecto creado en estado Solicitud. Redirigiendo...");
-    setTimeout(() => navigate({ to: "/comercial/proyectos/$id", params: { id: p.id } }), 600);
+    crearProyecto.mutate(
+      { clienteId: form.clienteId, tipo: form.tipo, fechaSolicitud: form.fechaSolicitud },
+      {
+        onSuccess: (proyecto) => {
+          setOkMsg("Proyecto creado en estado Solicitud. Redirigiendo...");
+          setTimeout(
+            () => navigate({ to: "/comercial/proyectos/$id", params: { id: proyecto.id } }),
+            600,
+          );
+        },
+        onError: () => setError("No se pudo crear el proyecto. Intenta nuevamente."),
+      },
+    );
   };
 
   return (
@@ -157,8 +166,8 @@ function NuevoProyecto() {
           >
             Cancelar
           </Link>
-          <Button type="submit" disabled={!puedeEditar}>
-            Crear proyecto
+          <Button type="submit" disabled={!puedeEditar || crearProyecto.isPending}>
+            {crearProyecto.isPending ? "Creando…" : "Crear proyecto"}
           </Button>
         </div>
       </form>

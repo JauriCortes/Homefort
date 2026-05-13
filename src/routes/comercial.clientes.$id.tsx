@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { ArrowLeft, Pencil, Plus } from "lucide-react";
-import { useStore, useUsuarioActivo } from "@/hooks/use-store";
+import { useMe } from "@/hooks/api/use-auth";
+import { useCliente, useProyectos } from "@/hooks/api/use-comercial";
 import {
   PageHeader,
   EstadoBadge,
@@ -15,10 +16,12 @@ export const Route = createFileRoute("/comercial/clientes/$id")({
 
 function ClienteDetalle() {
   const { id } = Route.useParams();
-  const usuario = useUsuarioActivo();
-  const cliente = useStore((s) => s.cliente(id));
-  const proyectos = useStore((s) => s.proyectosDeCliente(id));
-  const puedeEditar = usuario.esAdmin || usuario.areas.includes("comercial");
+  const { data: usuario } = useMe();
+  const { data: cliente, isLoading } = useCliente(id);
+  const { data: proyectos = [] } = useProyectos({ clienteId: id });
+  const puedeEditar = (usuario?.esAdmin || usuario?.areas.includes("comercial")) ?? false;
+
+  if (isLoading) return null;
 
   if (!cliente) {
     return (
@@ -30,9 +33,7 @@ function ClienteDetalle() {
             { label: "Clientes", to: "/comercial/clientes" },
           ]}
         />
-        <ErrorBanner>
-          El cliente que intentas consultar no existe o fue eliminado.
-        </ErrorBanner>
+        <ErrorBanner>El cliente que intentas consultar no existe o fue eliminado.</ErrorBanner>
         <Link
           to="/comercial/clientes"
           className="inline-flex h-9 items-center gap-1.5 rounded-md border border-border bg-surface px-3 text-sm font-medium hover:bg-muted"

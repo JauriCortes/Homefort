@@ -1,14 +1,11 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { ArrowLeft } from "lucide-react";
-import { useUsuarioActivo } from "@/hooks/use-store";
-import { store, nuevoId, type TipoCliente } from "@/lib/store";
-import {
-  PageHeader,
-  ErrorBanner,
-  ReadOnlyBanner,
-  SuccessBanner,
-} from "@/components/ui-bits";
+import { useMe } from "@/hooks/api/use-auth";
+import { useCrearCliente } from "@/hooks/api/use-comercial";
+import { ApiError } from "@/lib/api-client";
+import type { TipoCliente } from "@/lib/store";
+import { PageHeader, ErrorBanner, ReadOnlyBanner, SuccessBanner } from "@/components/ui-bits";
 import { Field, TextInput, Select, Button } from "@/components/form-bits";
 
 export const Route = createFileRoute("/comercial/clientes/nuevo")({
@@ -16,9 +13,10 @@ export const Route = createFileRoute("/comercial/clientes/nuevo")({
 });
 
 function NuevoCliente() {
-  const usuario = useUsuarioActivo();
+  const { data: usuario } = useMe();
   const navigate = useNavigate();
-  const puedeEditar = usuario.esAdmin || usuario.areas.includes("comercial");
+  const crearCliente = useCrearCliente();
+  const puedeEditar = (usuario?.esAdmin || usuario?.areas.includes("comercial")) ?? false;
 
   const [form, setForm] = useState({
     nombre: "",
@@ -45,24 +43,32 @@ function NuevoCliente() {
       setError("El contacto es obligatorio (correo o teléfono).");
       return;
     }
-    if (store.contactoExiste(form.contacto)) {
-      setError(
-        "Ya existe un cliente registrado con ese contacto. Verifica la lista de clientes antes de crear uno nuevo.",
-      );
-      return;
-    }
-    const id = nuevoId("c");
-    store.clientes.push({
-      id,
-      nombre: form.nombre.trim(),
-      contacto: form.contacto.trim(),
-      tipo: form.tipo,
-      empresa: form.empresa.trim() || undefined,
-      creadoEn: new Date().toISOString().slice(0, 10),
-    });
-    store.emit();
-    setOkMsg("Cliente registrado correctamente. Redirigiendo…");
-    setTimeout(() => navigate({ to: "/comercial/clientes/$id", params: { id } }), 600);
+    crearCliente.mutate(
+      {
+        nombre: form.nombre.trim(),
+        contacto: form.contacto.trim(),
+        tipo: form.tipo,
+        empresa: form.empresa.trim() || undefined,
+      },
+      {
+        onSuccess: (cliente) => {
+          setOkMsg("Cliente registrado correctamente. Redirigiendo…");
+          setTimeout(
+            () => navigate({ to: "/comercial/clientes/$id", params: { id: cliente.id } }),
+            600,
+          );
+        },
+        onError: (err) => {
+          if (err instanceof ApiError && err.status === 409) {
+            setError(
+              "Ya existe un cliente registrado con ese contacto. Verifica la lista de clientes antes de crear uno nuevo.",
+            );
+          } else {
+            setError("No se pudo registrar el cliente. Intenta nuevamente.");
+          }
+        },
+      },
+    );
   };
 
   return (
@@ -99,11 +105,7 @@ function NuevoCliente() {
           />
         </Field>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <Field
-            label="Tipo de cliente"
-            required
-            hint="B2B = empresa · B2C = persona natural"
-          >
+          <Field label="Tipo de cliente" required hint="B2B = empresa · B2C = persona natural">
             <Select
               disabled={!puedeEditar}
               value={form.tipo}
@@ -140,8 +142,8 @@ function NuevoCliente() {
           >
             Cancelar
           </Link>
-          <Button type="submit" disabled={!puedeEditar}>
-            Guardar cliente
+          <Button type="submit" disabled={!puedeEditar || crearCliente.isPending}>
+            {crearCliente.isPending ? "Guardando…" : "Guardar cliente"}
           </Button>
         </div>
       </form>

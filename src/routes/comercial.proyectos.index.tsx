@@ -1,13 +1,9 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { Plus, Search, FolderKanban, Eye } from "lucide-react";
-import { useStore, useUsuarioActivo } from "@/hooks/use-store";
-import {
-  PageHeader,
-  EmptyState,
-  EstadoBadge,
-  TipoClienteBadge,
-} from "@/components/ui-bits";
+import { useMe } from "@/hooks/api/use-auth";
+import { useProyectos, useClientes } from "@/hooks/api/use-comercial";
+import { PageHeader, EmptyState, EstadoBadge, TipoClienteBadge } from "@/components/ui-bits";
 import { TextInput, Select } from "@/components/form-bits";
 
 export const Route = createFileRoute("/comercial/proyectos/")({
@@ -15,10 +11,10 @@ export const Route = createFileRoute("/comercial/proyectos/")({
 });
 
 function ProyectosList() {
-  const usuario = useUsuarioActivo();
-  const proyectos = useStore((s) => s.proyectos);
-  const clientes = useStore((s) => s.clientes);
-  const puedeEditar = usuario.esAdmin || usuario.areas.includes("comercial");
+  const { data: usuario } = useMe();
+  const { data: proyectos = [] } = useProyectos();
+  const { data: clientes = [] } = useClientes();
+  const puedeEditar = (usuario?.esAdmin || usuario?.areas.includes("comercial")) ?? false;
 
   const [q, setQ] = useState("");
   const [estado, setEstado] = useState("");
