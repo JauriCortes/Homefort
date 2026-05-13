@@ -262,6 +262,18 @@ comercial.patch("/proyectos/:id/estado", requireAuth, requireArea("comercial"), 
   return c.json(updated);
 });
 
+comercial.delete("/proyectos/:id", requireAuth, requireArea("comercial"), async (c) => {
+  const db = drizzle(c.env.DB);
+  const [proyecto] = await db
+    .select()
+    .from(proyectos)
+    .where(eq(proyectos.id, c.req.param("id")))
+    .limit(1);
+  if (!proyecto) return c.json({ error: "Proyecto no encontrado" }, 404);
+  await db.delete(proyectos).where(eq(proyectos.id, proyecto.id));
+  return c.json({ ok: true });
+});
+
 // ── Especificaciones ──────────────────────────────────────────────────────────
 
 comercial.post(

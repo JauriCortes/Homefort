@@ -2,13 +2,14 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import {
   ArrowLeft,
-  Pencil,
   Plus,
+  Trash2,
   FileText,
   History,
   ListChecks,
   Receipt,
   AlertTriangle,
+  Pencil,
 } from "lucide-react";
 import { z } from "zod";
 import { useMe } from "@/hooks/api/use-auth";
@@ -19,6 +20,7 @@ import {
   useAgregarEspecificacion,
   useAgregarCotizacion,
   useAgregarCambio,
+  useEliminarProyecto,
 } from "@/hooks/api/use-comercial";
 import {
   TRANSICIONES,
@@ -78,7 +80,11 @@ function ProyectoDetalleInner({ proyecto }: { proyecto: Proyecto }) {
   const navigate = useNavigate();
   const { data: usuario } = useMe();
   const { data: cliente } = useCliente(proyecto.clienteId);
+  const eliminarProyecto = useEliminarProyecto();
   const puedeEditar = (usuario?.esAdmin || usuario?.areas.includes("comercial")) ?? false;
+
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const tab = search.tab ?? "resumen";
   const setTab = (t: NonNullable<z.infer<typeof searchSchema>["tab"]>) =>
@@ -91,6 +97,17 @@ function ProyectoDetalleInner({ proyecto }: { proyecto: Proyecto }) {
   const especActual = proyecto.especificaciones[proyecto.especificaciones.length - 1];
   const tieneEspec = !!especActual?.contenido?.trim();
 
+  const handleDelete = () => {
+    setDeleteError(null);
+    eliminarProyecto.mutate(proyecto.id, {
+      onSuccess: () => navigate({ to: "/comercial/proyectos" }),
+      onError: () => {
+        setDeleteError("No se pudo eliminar el proyecto. Intenta nuevamente.");
+        setConfirmDelete(false);
+      },
+    });
+  };
+
   return (
     <div>
       <PageHeader
@@ -102,59 +119,83 @@ function ProyectoDetalleInner({ proyecto }: { proyecto: Proyecto }) {
           { label: proyecto.titulo || proyecto.codigo },
         ]}
         actions={
-          <Link
-            to="/comercial/proyectos"
-            className="inline-flex h-9 items-center gap-1.5 rounded-md border border-border bg-surface px-3 text-sm font-medium hover:bg-muted"
-          >
-            <ArrowLeft className="h-4 w-4" /> Volver
-          </Link>
+          <>
+            <Link
+              to="/comercial/proyectos"
+              className="inline-flex h-9 items-center gap-1.5 rounded-md border border-border bg-surface px-3 text-sm font-medium hover:bg-muted"
+            >
+              <ArrowLeft className="h-4 w-4" /> Volver
+            </Link>
+            {puedeEditar && (
+              <button
+                onClick={() => setConfirmDelete(true)}
+                className="inline-flex h-9 items-center gap-1.5 rounded-md border border-destructive/40 bg-surface px-3 text-sm font-medium text-destructive hover:bg-destructive/10"
+              >
+                <Trash2 className="h-4 w-4" /> Eliminar
+              </button>
+            )}
+          </>
         }
       />
 
-      <div className="mb-4 grid gap-3 sm:grid-cols-2">
-        <div className="rounded-lg border border-border bg-surface p-3">
-          <dl className="space-y-1.5 text-sm">
-            <InfoRow label="Cliente">
-              {cliente ? (
-                <Link
-                  to="/comercial/clientes/$id"
-                  params={{ id: cliente.id }}
-                  className="flex items-center gap-1.5 text-primary hover:underline"
-                >
-                  {cliente.nombre} <TipoClienteBadge tipo={cliente.tipo} />
-                </Link>
-              ) : (
-                <span className="text-muted-foreground">—</span>
-              )}
-            </InfoRow>
-            <InfoRow label="Solicitado">{proyecto.fechaSolicitud}</InfoRow>
-            {proyecto.fechaEntrega && (
-              <InfoRow label="Entrega estimada">{proyecto.fechaEntrega}</InfoRow>
-            )}
-            {proyecto.descripcionProyecto && (
-              <InfoRow label="Descripción">
-                <span className="whitespace-pre-wrap">{proyecto.descripcionProyecto}</span>
-              </InfoRow>
-            )}
-          </dl>
+      {deleteError && (
+        <div className="mb-3 rounded-md border border-destructive/30 bg-destructive/10 px-4 py-2 text-sm text-destructive">
+          {deleteError}
         </div>
+      )}
 
-        <div className="rounded-lg border border-border bg-surface p-3">
-          <div className="mb-2 flex items-center gap-2">
-            <span className="text-xs uppercase tracking-wide text-muted-foreground">Estado</span>
-            <EstadoBadge estado={proyecto.estado} />
-          </div>
-          {puedeEditar ? (
-            <CambiarEstadoSelect proyectoId={proyecto.id} estadoActual={proyecto.estado} />
-          ) : (
-            <p className="text-xs text-muted-foreground">Solo Comercial puede cambiar el estado.</p>
-          )}
-          <div className="mt-3 flex gap-4 text-xs text-muted-foreground">
-            <span>{proyecto.especificaciones.length} espec.</span>
-            <span>{proyecto.cotizaciones.length} cotiz.</span>
-            <span>{proyecto.cambios.length} cambios</span>
+      {confirmDelete && (
+        <div className="mb-4 rounded-lg border border-destructive/30 bg-destructive/10 p-4">
+          <p className="mb-3 text-sm font-medium">
+            ¿Eliminar el proyecto <b>{proyecto.titulo || proyecto.codigo}</b>? Esta acción eliminará
+            también sus especificaciones, cotizaciones y cambios.
+          </p>
+          <div className="flex gap-2">
+            <button
+              onClick={handleDelete}
+              disabled={eliminarProyecto.isPending}
+              className="inline-flex h-8 items-center rounded-md bg-destructive px-3 text-xs font-medium text-white hover:bg-destructive/90 disabled:opacity-50"
+            >
+              {eliminarProyecto.isPending ? "Eliminando…" : "Sí, eliminar"}
+            </button>
+            <button
+              onClick={() => setConfirmDelete(false)}
+              className="inline-flex h-8 items-center rounded-md border border-border bg-surface px-3 text-xs font-medium hover:bg-muted"
+            >
+              Cancelar
+            </button>
           </div>
         </div>
+      )}
+
+      <div className="mb-4 flex flex-wrap items-center gap-x-4 gap-y-1 rounded-lg border border-border bg-surface px-4 py-3 text-sm">
+        <span className="font-medium text-muted-foreground">{proyecto.codigo}</span>
+        <span className="text-border">·</span>
+        {cliente ? (
+          <Link
+            to="/comercial/clientes/$id"
+            params={{ id: cliente.id }}
+            className="flex items-center gap-1.5 text-primary hover:underline"
+          >
+            {cliente.nombre} <TipoClienteBadge tipo={cliente.tipo} />
+          </Link>
+        ) : (
+          <span className="text-muted-foreground">Cliente eliminado</span>
+        )}
+        <span className="text-border">·</span>
+        <span className="text-muted-foreground">Solicitado {proyecto.fechaSolicitud}</span>
+        {proyecto.fechaEntrega && (
+          <>
+            <span className="text-border">·</span>
+            <span className="text-muted-foreground">Entrega {proyecto.fechaEntrega}</span>
+          </>
+        )}
+        <span className="ml-auto flex items-center gap-2">
+          <EstadoBadge estado={proyecto.estado} />
+          {puedeEditar && (
+            <CambiarEstadoSelect proyectoId={proyecto.id} estadoActual={proyecto.estado} />
+          )}
+        </span>
       </div>
 
       <div className="mb-4 flex flex-wrap gap-1 border-b border-border">
@@ -198,15 +239,6 @@ function ProyectoDetalleInner({ proyecto }: { proyecto: Proyecto }) {
         <CotizacionesTab proyectoId={proyecto.id} puedeEditar={puedeEditar} />
       )}
       {tab === "cambios" && <CambiosTab proyectoId={proyecto.id} puedeEditar={puedeEditar} />}
-    </div>
-  );
-}
-
-function InfoRow({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div className="flex items-start gap-2">
-      <dt className="w-28 shrink-0 text-xs text-muted-foreground">{label}</dt>
-      <dd className="text-sm">{children}</dd>
     </div>
   );
 }
@@ -296,12 +328,21 @@ function CambiarEstadoSelect({
 function ResumenTab({ proyecto }: { proyecto: Proyecto }) {
   const especActual = proyecto.especificaciones[proyecto.especificaciones.length - 1];
   const ultimaCot = proyecto.cotizaciones[proyecto.cotizaciones.length - 1];
+  const hasDetails = proyecto.descripcionProyecto || proyecto.aspectos || proyecto.caracteristicas;
 
   return (
-    <div className="grid gap-4 md:grid-cols-2">
-      {(proyecto.aspectos || proyecto.caracteristicas) && (
-        <div className="rounded-lg border border-border bg-surface p-4 md:col-span-2">
+    <div className="space-y-4">
+      {hasDetails && (
+        <div className="rounded-lg border border-border bg-surface p-4">
           <div className="grid gap-4 sm:grid-cols-2">
+            {proyecto.descripcionProyecto && (
+              <div className="sm:col-span-2">
+                <h4 className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  Descripción
+                </h4>
+                <p className="whitespace-pre-wrap text-sm">{proyecto.descripcionProyecto}</p>
+              </div>
+            )}
             {proyecto.aspectos && (
               <div>
                 <h4 className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
@@ -322,37 +363,39 @@ function ResumenTab({ proyecto }: { proyecto: Proyecto }) {
         </div>
       )}
 
-      <div className="rounded-lg border border-border bg-surface p-4">
-        <h3 className="mb-2 flex items-center gap-2 text-sm font-semibold">
-          <ListChecks className="h-4 w-4" /> Especificación actual
-        </h3>
-        {especActual?.contenido ? (
-          <p className="whitespace-pre-wrap text-sm">{especActual.contenido}</p>
-        ) : (
-          <p className="text-sm text-muted-foreground">Sin especificaciones aún.</p>
-        )}
-        {especActual && (
-          <p className="mt-2 text-xs text-muted-foreground">
-            v{especActual.version} · {especActual.actualizadoEn} · {especActual.actualizadoPor}
-          </p>
-        )}
-      </div>
+      <div className="grid gap-4 md:grid-cols-2">
+        <div className="rounded-lg border border-border bg-surface p-4">
+          <h3 className="mb-2 flex items-center gap-2 text-sm font-semibold">
+            <ListChecks className="h-4 w-4" /> Especificación actual
+          </h3>
+          {especActual?.contenido ? (
+            <p className="whitespace-pre-wrap text-sm">{especActual.contenido}</p>
+          ) : (
+            <p className="text-sm text-muted-foreground">Sin especificaciones aún.</p>
+          )}
+          {especActual && (
+            <p className="mt-2 text-xs text-muted-foreground">
+              v{especActual.version} · {especActual.actualizadoEn} · {especActual.actualizadoPor}
+            </p>
+          )}
+        </div>
 
-      <div className="rounded-lg border border-border bg-surface p-4">
-        <h3 className="mb-2 flex items-center gap-2 text-sm font-semibold">
-          <Receipt className="h-4 w-4" /> Última cotización
-        </h3>
-        {ultimaCot ? (
-          <div className="text-sm">
-            <div className="text-lg font-semibold tabular-nums">{formatCOP(ultimaCot.total)}</div>
-            <div className="text-xs text-muted-foreground">
-              {ultimaCot.fecha} · margen {ultimaCot.margenPct}%
+        <div className="rounded-lg border border-border bg-surface p-4">
+          <h3 className="mb-2 flex items-center gap-2 text-sm font-semibold">
+            <Receipt className="h-4 w-4" /> Última cotización
+          </h3>
+          {ultimaCot ? (
+            <div className="text-sm">
+              <div className="text-lg font-semibold tabular-nums">{formatCOP(ultimaCot.total)}</div>
+              <div className="text-xs text-muted-foreground">
+                {ultimaCot.fecha} · margen {ultimaCot.margenPct}%
+              </div>
+              <div className="mt-1 text-xs">{ultimaCot.condicionesPago}</div>
             </div>
-            <div className="mt-1 text-xs">{ultimaCot.condicionesPago}</div>
-          </div>
-        ) : (
-          <p className="text-sm text-muted-foreground">Sin cotizaciones registradas.</p>
-        )}
+          ) : (
+            <p className="text-sm text-muted-foreground">Sin cotizaciones registradas.</p>
+          )}
+        </div>
       </div>
     </div>
   );

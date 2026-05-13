@@ -113,6 +113,16 @@ export function useCrearProyecto() {
   });
 }
 
+export function useEliminarProyecto() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.delete<{ ok: boolean }>(`/comercial/proyectos/${id}`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: comercialKeys.proyectos.all() });
+    },
+  });
+}
+
 export function useActualizarEstadoProyecto(proyectoId: string) {
   const qc = useQueryClient();
   return useMutation({
