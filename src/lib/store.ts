@@ -421,15 +421,20 @@ type Listener = () => void;
 
 class Store {
   private listeners = new Set<Listener>();
+  private _mem: Partial<Record<string, unknown>> = {};
+  private _sesionMem: { v: Sesion | null } | undefined;
 
   // ─── Persistencia ─────────────────────
   private load<T>(key: string, seed: T): T {
+    if (key in this._mem) return this._mem[key] as T;
     const v = lsGet<T | null>(key, null);
-    if (v !== null) return v;
-    lsSet(key, seed);
-    return seed;
+    const result = v !== null ? v : seed;
+    if (v === null) lsSet(key, seed);
+    this._mem[key] = result;
+    return result;
   }
   private save(key: string, val: unknown) {
+    this._mem[key] = val;
     lsSet(key, val);
     this.emit();
   }
@@ -438,8 +443,13 @@ class Store {
   get usuarios(): Usuario[] { return this.load("hf_usuarios", SEED_USUARIOS); }
   set usuarios(v: Usuario[]) { this.save("hf_usuarios", v); }
 
-  get sesion(): Sesion | null { return lsGet<Sesion | null>("hf_sesion", null); }
-  set sesion(v: Sesion | null) { lsSet("hf_sesion", v); this.emit(); }
+  get sesion(): Sesion | null {
+    if (this._sesionMem !== undefined) return this._sesionMem.v;
+    const v = lsGet<Sesion | null>("hf_sesion", null);
+    this._sesionMem = { v };
+    return v;
+  }
+  set sesion(v: Sesion | null) { this._sesionMem = { v }; lsSet("hf_sesion", v); this.emit(); }
 
   get clientes(): Cliente[] { return this.load("hf_clientes", SEED_CLIENTES); }
   set clientes(v: Cliente[]) { this.save("hf_clientes", v); }
@@ -503,7 +513,7 @@ class Store {
   }
   registrarActividad() {
     const s = this.sesion;
-    if (s) { s.ultimaActividad = new Date().toISOString(); lsSet("hf_sesion", s); }
+    if (s) { s.ultimaActividad = new Date().toISOString(); lsSet("hf_sesion", s); this._sesionMem = { v: s }; }
   }
   login(email: string, password: string): LoginResultado {
     const usuarios = this.usuarios;
