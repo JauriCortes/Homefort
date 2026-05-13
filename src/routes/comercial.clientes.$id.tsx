@@ -1,7 +1,9 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
-import { ArrowLeft, Pencil, Plus } from "lucide-react";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { useState } from "react";
+import { ArrowLeft, Pencil, Plus, Trash2 } from "lucide-react";
 import { useMe } from "@/hooks/api/use-auth";
-import { useCliente, useProyectos } from "@/hooks/api/use-comercial";
+import { useCliente, useProyectos, useEliminarCliente } from "@/hooks/api/use-comercial";
+import { ApiError } from "@/lib/api-client";
 import {
   PageHeader,
   EstadoBadge,
@@ -19,7 +21,12 @@ function ClienteDetalle() {
   const { data: usuario } = useMe();
   const { data: cliente, isLoading } = useCliente(id);
   const { data: proyectos = [] } = useProyectos({ clienteId: id });
+  const eliminarCliente = useEliminarCliente();
+  const navigate = useNavigate();
   const puedeEditar = (usuario?.esAdmin || usuario?.areas.includes("comercial")) ?? false;
+
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   if (isLoading) return null;
 
@@ -44,6 +51,21 @@ function ClienteDetalle() {
     );
   }
 
+  const handleDelete = () => {
+    setDeleteError(null);
+    eliminarCliente.mutate(cliente.id, {
+      onSuccess: () => navigate({ to: "/comercial/clientes" }),
+      onError: (err) => {
+        if (err instanceof ApiError && err.status === 422) {
+          setDeleteError("No se puede eliminar: el cliente tiene proyectos asociados.");
+        } else {
+          setDeleteError("No se pudo eliminar el cliente. Intenta nuevamente.");
+        }
+        setConfirmDelete(false);
+      },
+    });
+  };
+
   return (
     <div>
       <PageHeader
@@ -63,25 +85,70 @@ function ClienteDetalle() {
               <ArrowLeft className="h-4 w-4" /> Volver
             </Link>
             {puedeEditar ? (
-              <Link
-                to="/comercial/clientes/$id/editar"
-                params={{ id: cliente.id }}
-                className="inline-flex h-9 items-center gap-1.5 rounded-md border border-border bg-surface px-3 text-sm font-medium hover:bg-muted"
-              >
-                <Pencil className="h-4 w-4" /> Editar
-              </Link>
+              <>
+                <Link
+                  to="/comercial/clientes/$id/editar"
+                  params={{ id: cliente.id }}
+                  className="inline-flex h-9 items-center gap-1.5 rounded-md border border-border bg-surface px-3 text-sm font-medium hover:bg-muted"
+                >
+                  <Pencil className="h-4 w-4" /> Editar
+                </Link>
+                <button
+                  onClick={() => setConfirmDelete(true)}
+                  className="inline-flex h-9 items-center gap-1.5 rounded-md border border-destructive/40 bg-surface px-3 text-sm font-medium text-destructive hover:bg-destructive/10"
+                >
+                  <Trash2 className="h-4 w-4" /> Eliminar
+                </button>
+              </>
             ) : (
-              <button
-                disabled
-                title="Solo el área comercial puede editar"
-                className="inline-flex h-9 cursor-not-allowed items-center gap-1.5 rounded-md bg-muted px-3 text-sm font-medium text-muted-foreground"
-              >
-                <Pencil className="h-4 w-4" /> Editar
-              </button>
+              <>
+                <button
+                  disabled
+                  title="Solo el área comercial puede editar"
+                  className="inline-flex h-9 cursor-not-allowed items-center gap-1.5 rounded-md bg-muted px-3 text-sm font-medium text-muted-foreground"
+                >
+                  <Pencil className="h-4 w-4" /> Editar
+                </button>
+                <button
+                  disabled
+                  className="inline-flex h-9 cursor-not-allowed items-center gap-1.5 rounded-md bg-muted px-3 text-sm font-medium text-muted-foreground"
+                >
+                  <Trash2 className="h-4 w-4" /> Eliminar
+                </button>
+              </>
             )}
           </>
         }
       />
+
+      {deleteError && (
+        <div className="mb-4 rounded-md border border-destructive/30 bg-destructive/10 px-4 py-2 text-sm text-destructive">
+          {deleteError}
+        </div>
+      )}
+
+      {confirmDelete && (
+        <div className="mb-4 rounded-lg border border-destructive/30 bg-destructive/10 p-4">
+          <p className="mb-3 text-sm font-medium">
+            ¿Eliminar a <b>{cliente.nombre}</b>? Esta acción no se puede deshacer.
+          </p>
+          <div className="flex gap-2">
+            <button
+              onClick={handleDelete}
+              disabled={eliminarCliente.isPending}
+              className="inline-flex h-8 items-center rounded-md bg-destructive px-3 text-xs font-medium text-white hover:bg-destructive/90 disabled:opacity-50"
+            >
+              {eliminarCliente.isPending ? "Eliminando…" : "Sí, eliminar"}
+            </button>
+            <button
+              onClick={() => setConfirmDelete(false)}
+              className="inline-flex h-8 items-center rounded-md border border-border bg-surface px-3 text-xs font-medium hover:bg-muted"
+            >
+              Cancelar
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className="grid gap-4 md:grid-cols-3">
         <section className="rounded-lg border border-border bg-surface p-4 md:col-span-1">
@@ -128,9 +195,9 @@ function ClienteDetalle() {
                     className="flex items-center justify-between gap-3 px-4 py-3 hover:bg-muted/40"
                   >
                     <div className="min-w-0">
-                      <div className="text-sm font-medium">{p.codigo}</div>
+                      <div className="text-sm font-medium">{p.titulo || p.codigo}</div>
                       <div className="text-xs text-muted-foreground">
-                        {p.tipo} · solicitado {p.fechaSolicitud}
+                        {p.codigo} · solicitado {p.fechaSolicitud}
                       </div>
                     </div>
                     <EstadoBadge estado={p.estado} />

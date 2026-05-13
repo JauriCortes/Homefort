@@ -8,7 +8,6 @@ import {
   History,
   ListChecks,
   Receipt,
-  Layers,
   AlertTriangle,
 } from "lucide-react";
 import { z } from "zod";
@@ -21,7 +20,6 @@ import {
   useAgregarCotizacion,
   useAgregarCambio,
 } from "@/hooks/api/use-comercial";
-import { useStore } from "@/hooks/use-store";
 import {
   TRANSICIONES,
   formatCOP,
@@ -91,21 +89,17 @@ function ProyectoDetalleInner({ proyecto }: { proyecto: Proyecto }) {
     });
 
   const especActual = proyecto.especificaciones[proyecto.especificaciones.length - 1];
-  const especComplete =
-    !!especActual &&
-    especActual.medidas.trim() &&
-    especActual.materiales.trim() &&
-    especActual.acabados.trim();
+  const tieneEspec = !!especActual?.contenido?.trim();
 
   return (
     <div>
       <PageHeader
-        title={proyecto.codigo}
-        description={`${proyecto.tipo} · solicitado el ${proyecto.fechaSolicitud}`}
+        title={proyecto.titulo || proyecto.codigo}
+        description={proyecto.codigo}
         crumbs={[
           { label: "Comercial", to: "/comercial" },
           { label: "Proyectos", to: "/comercial/proyectos" },
-          { label: proyecto.codigo },
+          { label: proyecto.titulo || proyecto.codigo },
         ]}
         actions={
           <Link
@@ -117,49 +111,54 @@ function ProyectoDetalleInner({ proyecto }: { proyecto: Proyecto }) {
         }
       />
 
-      <div className="mb-4 grid gap-3 md:grid-cols-3">
-        <div className="rounded-lg border border-border bg-surface p-4">
-          <div className="text-xs uppercase tracking-wide text-muted-foreground">Cliente</div>
-          {cliente ? (
-            <Link
-              to="/comercial/clientes/$id"
-              params={{ id: cliente.id }}
-              className="mt-1 flex items-center gap-2 text-sm font-medium text-primary hover:underline"
-            >
-              {cliente.nombre} <TipoClienteBadge tipo={cliente.tipo} />
-            </Link>
-          ) : (
-            <div className="mt-1 text-sm text-muted-foreground">Cliente eliminado</div>
-          )}
-          {cliente?.contacto && (
-            <div className="text-xs text-muted-foreground">{cliente.contacto}</div>
-          )}
+      <div className="mb-4 grid gap-3 sm:grid-cols-2">
+        <div className="rounded-lg border border-border bg-surface p-3">
+          <dl className="space-y-1.5 text-sm">
+            <InfoRow label="Cliente">
+              {cliente ? (
+                <Link
+                  to="/comercial/clientes/$id"
+                  params={{ id: cliente.id }}
+                  className="flex items-center gap-1.5 text-primary hover:underline"
+                >
+                  {cliente.nombre} <TipoClienteBadge tipo={cliente.tipo} />
+                </Link>
+              ) : (
+                <span className="text-muted-foreground">—</span>
+              )}
+            </InfoRow>
+            <InfoRow label="Solicitado">{proyecto.fechaSolicitud}</InfoRow>
+            {proyecto.fechaEntrega && (
+              <InfoRow label="Entrega estimada">{proyecto.fechaEntrega}</InfoRow>
+            )}
+            {proyecto.descripcionProyecto && (
+              <InfoRow label="Descripción">
+                <span className="whitespace-pre-wrap">{proyecto.descripcionProyecto}</span>
+              </InfoRow>
+            )}
+          </dl>
         </div>
-        <div className="rounded-lg border border-border bg-surface p-4">
-          <div className="text-xs uppercase tracking-wide text-muted-foreground">Estado</div>
-          <div className="mt-1">
+
+        <div className="rounded-lg border border-border bg-surface p-3">
+          <div className="mb-2 flex items-center gap-2">
+            <span className="text-xs uppercase tracking-wide text-muted-foreground">Estado</span>
             <EstadoBadge estado={proyecto.estado} />
           </div>
           {puedeEditar ? (
             <CambiarEstadoSelect proyectoId={proyecto.id} estadoActual={proyecto.estado} />
           ) : (
-            <div className="mt-2 text-xs text-muted-foreground">
-              Solo Comercial puede cambiar el estado.
-            </div>
+            <p className="text-xs text-muted-foreground">Solo Comercial puede cambiar el estado.</p>
           )}
-        </div>
-        <div className="rounded-lg border border-border bg-surface p-4">
-          <div className="text-xs uppercase tracking-wide text-muted-foreground">Resumen</div>
-          <ul className="mt-1 space-y-0.5 text-sm">
-            <li>{proyecto.especificaciones.length} versión(es) de especificación</li>
-            <li>{proyecto.cotizaciones.length} cotización(es)</li>
-            <li>{proyecto.cambios.length} cambio(s) registrados</li>
-          </ul>
+          <div className="mt-3 flex gap-4 text-xs text-muted-foreground">
+            <span>{proyecto.especificaciones.length} espec.</span>
+            <span>{proyecto.cotizaciones.length} cotiz.</span>
+            <span>{proyecto.cambios.length} cambios</span>
+          </div>
         </div>
       </div>
 
       <div className="mb-4 flex flex-wrap gap-1 border-b border-border">
-        <TabBtn active={tab === "resumen"} onClick={() => setTab("resumen")} icon={Layers}>
+        <TabBtn active={tab === "resumen"} onClick={() => setTab("resumen")} icon={FileText}>
           Resumen
         </TabBtn>
         <TabBtn
@@ -168,7 +167,7 @@ function ProyectoDetalleInner({ proyecto }: { proyecto: Proyecto }) {
           icon={ListChecks}
         >
           Especificaciones
-          {!especComplete && (
+          {!tieneEspec && (
             <span
               className="ml-1 inline-flex h-4 w-4 items-center justify-center rounded-full bg-warning/30 text-[10px] text-warning-foreground"
               title="Faltan especificaciones para producción"
@@ -191,13 +190,7 @@ function ProyectoDetalleInner({ proyecto }: { proyecto: Proyecto }) {
 
       {!puedeEditar && <ReadOnlyBanner area="Comercial" />}
 
-      {tab === "resumen" && (
-        <ResumenTab
-          ultimaEspec={especActual}
-          ultimaCot={proyecto.cotizaciones[proyecto.cotizaciones.length - 1]}
-          totalCambios={proyecto.cambios.length}
-        />
-      )}
+      {tab === "resumen" && <ResumenTab proyecto={proyecto} />}
       {tab === "especificaciones" && (
         <EspecificacionesTab proyectoId={proyecto.id} puedeEditar={puedeEditar} />
       )}
@@ -205,6 +198,15 @@ function ProyectoDetalleInner({ proyecto }: { proyecto: Proyecto }) {
         <CotizacionesTab proyectoId={proyecto.id} puedeEditar={puedeEditar} />
       )}
       {tab === "cambios" && <CambiosTab proyectoId={proyecto.id} puedeEditar={puedeEditar} />}
+    </div>
+  );
+}
+
+function InfoRow({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="flex items-start gap-2">
+      <dt className="w-28 shrink-0 text-xs text-muted-foreground">{label}</dt>
+      <dd className="text-sm">{children}</dd>
     </div>
   );
 }
@@ -249,12 +251,12 @@ function CambiarEstadoSelect({
 
   if (opciones.length === 0) {
     return (
-      <div className="mt-2 text-xs text-muted-foreground">El proyecto está en un estado final.</div>
+      <div className="text-xs text-muted-foreground">El proyecto está en un estado final.</div>
     );
   }
 
   return (
-    <div className="mt-2">
+    <div>
       <label className="text-xs text-muted-foreground">Cambiar a:</label>
       <div className="mt-1 flex gap-1.5">
         <Select
@@ -271,9 +273,7 @@ function CambiarEstadoSelect({
                 setTimeout(() => setOk(null), 2500);
                 e.target.value = "";
               },
-              onError: () => {
-                setError("No se pudo cambiar el estado. Intenta nuevamente.");
-              },
+              onError: () => setError("No se pudo cambiar el estado."),
             });
           }}
         >
@@ -291,48 +291,60 @@ function CambiarEstadoSelect({
   );
 }
 
-function ResumenTab({
-  ultimaEspec,
-  ultimaCot,
-  totalCambios,
-}: {
-  ultimaEspec?: Proyecto["especificaciones"][0];
-  ultimaCot?: Proyecto["cotizaciones"][0];
-  totalCambios: number;
-}) {
+/* ---------------- Resumen ---------------- */
+
+function ResumenTab({ proyecto }: { proyecto: Proyecto }) {
+  const especActual = proyecto.especificaciones[proyecto.especificaciones.length - 1];
+  const ultimaCot = proyecto.cotizaciones[proyecto.cotizaciones.length - 1];
+
   return (
     <div className="grid gap-4 md:grid-cols-2">
+      {(proyecto.aspectos || proyecto.caracteristicas) && (
+        <div className="rounded-lg border border-border bg-surface p-4 md:col-span-2">
+          <div className="grid gap-4 sm:grid-cols-2">
+            {proyecto.aspectos && (
+              <div>
+                <h4 className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  Aspectos
+                </h4>
+                <p className="whitespace-pre-wrap text-sm">{proyecto.aspectos}</p>
+              </div>
+            )}
+            {proyecto.caracteristicas && (
+              <div>
+                <h4 className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  Características específicas
+                </h4>
+                <p className="whitespace-pre-wrap text-sm">{proyecto.caracteristicas}</p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       <div className="rounded-lg border border-border bg-surface p-4">
         <h3 className="mb-2 flex items-center gap-2 text-sm font-semibold">
-          <ListChecks className="h-4 w-4" /> Última especificación
+          <ListChecks className="h-4 w-4" /> Especificación actual
         </h3>
-        {ultimaEspec ? (
-          <ul className="space-y-1 text-sm">
-            <li>
-              <span className="text-muted-foreground">Medidas:</span> {ultimaEspec.medidas}
-            </li>
-            <li>
-              <span className="text-muted-foreground">Materiales:</span> {ultimaEspec.materiales}
-            </li>
-            <li>
-              <span className="text-muted-foreground">Acabados:</span> {ultimaEspec.acabados}
-            </li>
-            <li className="text-xs text-muted-foreground">
-              Versión {ultimaEspec.version} · {ultimaEspec.actualizadoEn} ·{" "}
-              {ultimaEspec.actualizadoPor}
-            </li>
-          </ul>
+        {especActual?.contenido ? (
+          <p className="whitespace-pre-wrap text-sm">{especActual.contenido}</p>
         ) : (
-          <p className="text-sm text-muted-foreground">Aún no hay especificaciones.</p>
+          <p className="text-sm text-muted-foreground">Sin especificaciones aún.</p>
+        )}
+        {especActual && (
+          <p className="mt-2 text-xs text-muted-foreground">
+            v{especActual.version} · {especActual.actualizadoEn} · {especActual.actualizadoPor}
+          </p>
         )}
       </div>
+
       <div className="rounded-lg border border-border bg-surface p-4">
         <h3 className="mb-2 flex items-center gap-2 text-sm font-semibold">
           <Receipt className="h-4 w-4" /> Última cotización
         </h3>
         {ultimaCot ? (
           <div className="text-sm">
-            <div className="font-medium">{formatCOP(ultimaCot.total)}</div>
+            <div className="text-lg font-semibold tabular-nums">{formatCOP(ultimaCot.total)}</div>
             <div className="text-xs text-muted-foreground">
               {ultimaCot.fecha} · margen {ultimaCot.margenPct}%
             </div>
@@ -341,16 +353,6 @@ function ResumenTab({
         ) : (
           <p className="text-sm text-muted-foreground">Sin cotizaciones registradas.</p>
         )}
-      </div>
-      <div className="rounded-lg border border-border bg-surface p-4 md:col-span-2">
-        <h3 className="mb-1 flex items-center gap-2 text-sm font-semibold">
-          <History className="h-4 w-4" /> Cambios
-        </h3>
-        <p className="text-sm text-muted-foreground">
-          {totalCambios === 0
-            ? "No se han registrado cambios durante la ejecución."
-            : `${totalCambios} cambio(s) registrados con su impacto en costo y tiempo.`}
-        </p>
       </div>
     </div>
   );
@@ -370,12 +372,7 @@ function EspecificacionesTab({
   const agregarEspecificacion = useAgregarEspecificacion(proyectoId);
   const ultima = proyecto?.especificaciones[proyecto.especificaciones.length - 1];
   const [editing, setEditing] = useState(false);
-  const [form, setForm] = useState({
-    medidas: ultima?.medidas ?? "",
-    materiales: ultima?.materiales ?? "",
-    acabados: ultima?.acabados ?? "",
-    observaciones: ultima?.observaciones ?? "",
-  });
+  const [contenido, setContenido] = useState(ultima?.contenido ?? "");
   const [error, setError] = useState<string | null>(null);
   const [ok, setOk] = useState<string | null>(null);
 
@@ -386,23 +383,15 @@ function EspecificacionesTab({
     setError(null);
     setOk(null);
     if (!puedeEditar) return setError("No tienes permisos.");
-    if (!form.medidas.trim() || !form.materiales.trim() || !form.acabados.trim()) {
-      return setError("Completa medidas, materiales y acabados. Las observaciones son opcionales.");
-    }
+    if (!contenido.trim()) return setError("Escribe las especificaciones del proyecto.");
     agregarEspecificacion.mutate(
-      {
-        medidas: form.medidas.trim(),
-        materiales: form.materiales.trim(),
-        acabados: form.acabados.trim(),
-        observaciones: form.observaciones.trim(),
-        actualizadoPor: usuario?.nombre ?? "—",
-      },
+      { contenido: contenido.trim(), actualizadoPor: usuario?.nombre ?? "—" },
       {
         onSuccess: () => {
           setOk(
             ultima
-              ? "Nueva versión de la especificación guardada."
-              : "Especificación inicial registrada.",
+              ? "Nueva versión de especificación guardada."
+              : "Especificación inicial guardada.",
           );
           setEditing(false);
         },
@@ -420,7 +409,7 @@ function EspecificacionesTab({
         <EmptyState
           icon={FileText}
           title="Sin especificaciones técnicas"
-          description="No se puede generar una orden de producción sin especificaciones completas."
+          description="Describe las medidas, materiales, acabados y cualquier detalle técnico del proyecto."
           action={
             puedeEditar ? (
               <Button onClick={() => setEditing(true)}>
@@ -447,12 +436,7 @@ function EspecificacionesTab({
                 variant="secondary"
                 size="sm"
                 onClick={() => {
-                  setForm({
-                    medidas: ultima.medidas,
-                    materiales: ultima.materiales,
-                    acabados: ultima.acabados,
-                    observaciones: ultima.observaciones,
-                  });
+                  setContenido(ultima.contenido);
                   setEditing(true);
                 }}
               >
@@ -467,16 +451,9 @@ function EspecificacionesTab({
               </button>
             )}
           </header>
-          <dl className="grid gap-3 p-4 sm:grid-cols-2">
-            <SpecField label="Medidas">{ultima.medidas}</SpecField>
-            <SpecField label="Materiales">{ultima.materiales}</SpecField>
-            <SpecField label="Acabados">{ultima.acabados}</SpecField>
-            <SpecField label="Observaciones">
-              {ultima.observaciones || (
-                <span className="text-muted-foreground">Sin observaciones</span>
-              )}
-            </SpecField>
-          </dl>
+          <div className="p-4">
+            <p className="whitespace-pre-wrap text-sm">{ultima.contenido}</p>
+          </div>
         </div>
       )}
 
@@ -488,36 +465,14 @@ function EspecificacionesTab({
           <InfoBanner>
             Los cambios crean una nueva versión. La especificación anterior queda en el historial.
           </InfoBanner>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <Field label="Medidas" required>
-              <TextInput
-                value={form.medidas}
-                onChange={(e) => setForm({ ...form, medidas: e.target.value })}
-                placeholder="Ej. 2.40m x 0.60m, alto 0.90m"
-              />
-            </Field>
-            <Field label="Materiales" required>
-              <TextInput
-                value={form.materiales}
-                onChange={(e) => setForm({ ...form, materiales: e.target.value })}
-                placeholder="Ej. MDF enchapado, aglomerado melamínico"
-              />
-            </Field>
-            <Field label="Acabados" required>
-              <TextInput
-                value={form.acabados}
-                onChange={(e) => setForm({ ...form, acabados: e.target.value })}
-                placeholder="Ej. Laca mate, herrajes Blum"
-              />
-            </Field>
-            <Field label="Observaciones">
-              <TextArea
-                value={form.observaciones}
-                onChange={(e) => setForm({ ...form, observaciones: e.target.value })}
-                placeholder="Notas adicionales para producción…"
-              />
-            </Field>
-          </div>
+          <Field label="Especificaciones" required>
+            <TextArea
+              value={contenido}
+              onChange={(e) => setContenido(e.target.value)}
+              placeholder="Describe medidas, materiales, acabados, herrajes y cualquier detalle técnico necesario para producción…"
+              rows={10}
+            />
+          </Field>
           <div className="flex flex-wrap justify-end gap-2">
             <Button variant="secondary" type="button" onClick={() => setEditing(false)}>
               Cancelar
@@ -540,28 +495,13 @@ function EspecificacionesTab({
               .reverse()
               .map((e) => (
                 <li key={e.version} className="px-4 py-3 text-sm">
-                  <div className="flex items-center justify-between">
+                  <div className="mb-1 flex items-center justify-between">
                     <span className="font-medium">Versión {e.version}</span>
                     <span className="text-xs text-muted-foreground">
                       {e.actualizadoEn} · {e.actualizadoPor}
                     </span>
                   </div>
-                  <div className="mt-1 grid gap-1 text-xs text-muted-foreground sm:grid-cols-2">
-                    <div>
-                      <b>Medidas:</b> {e.medidas}
-                    </div>
-                    <div>
-                      <b>Materiales:</b> {e.materiales}
-                    </div>
-                    <div>
-                      <b>Acabados:</b> {e.acabados}
-                    </div>
-                    {e.observaciones && (
-                      <div className="sm:col-span-2">
-                        <b>Obs.:</b> {e.observaciones}
-                      </div>
-                    )}
-                  </div>
+                  <p className="whitespace-pre-wrap text-xs text-muted-foreground">{e.contenido}</p>
                 </li>
               ))}
           </ul>
@@ -571,19 +511,10 @@ function EspecificacionesTab({
   );
 }
 
-function SpecField({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div>
-      <dt className="text-xs uppercase tracking-wide text-muted-foreground">{label}</dt>
-      <dd className="mt-0.5 text-sm">{children}</dd>
-    </div>
-  );
-}
-
 /* ---------------- Cotizaciones ---------------- */
 
 function crearItemVacio(): CotizacionItem {
-  return { descripcion: "", materiales: 0, manoObra: 0 };
+  return { descripcion: "", cantidad: 1, precioUnitario: 0, precioTotal: 0 };
 }
 
 function CotizacionesTab({
@@ -594,13 +525,10 @@ function CotizacionesTab({
   puedeEditar: boolean;
 }) {
   const { data: proyecto } = useProyecto(proyectoId);
-  // materialesBase sigue en el store mientras Compras no se migre
-  const materialesBase = useStore((s) => s.materialesBase);
   const { data: usuario } = useMe();
   const agregarCotizacion = useAgregarCotizacion(proyectoId);
   const [creating, setCreating] = useState(false);
   const [form, setForm] = useState({
-    descripcion: "",
     margenPct: 25,
     condicionesPago: "50% anticipo, 50% contra entrega",
     items: [crearItemVacio()] as CotizacionItem[],
@@ -608,6 +536,10 @@ function CotizacionesTab({
   const [error, setError] = useState<string | null>(null);
   const [ok, setOk] = useState<string | null>(null);
 
+  const subtotal = useMemo(
+    () => form.items.reduce((s, it) => s + (it.precioTotal || 0), 0),
+    [form.items],
+  );
   const total = useMemo(
     () => calcularTotalCotizacion(form.items, form.margenPct),
     [form.items, form.margenPct],
@@ -618,7 +550,15 @@ function CotizacionesTab({
   const setItem = (i: number, patch: Partial<CotizacionItem>) => {
     setForm((f) => ({
       ...f,
-      items: f.items.map((it, idx) => (idx === i ? { ...it, ...patch } : it)),
+      items: f.items.map((it, idx) => {
+        if (idx !== i) return it;
+        const updated = { ...it, ...patch };
+        // Auto-recalculate precioTotal unless it was directly set
+        if ("cantidad" in patch || "precioUnitario" in patch) {
+          updated.precioTotal = Math.round((updated.cantidad || 0) * (updated.precioUnitario || 0));
+        }
+        return updated;
+      }),
     }));
   };
   const addItem = () => setForm((f) => ({ ...f, items: [...f.items, crearItemVacio()] }));
@@ -630,13 +570,11 @@ function CotizacionesTab({
     setError(null);
     setOk(null);
     if (!puedeEditar) return setError("No tienes permisos.");
-    if (!form.descripcion.trim()) return setError("Agrega una descripción para la cotización.");
     if (form.items.length === 0 || form.items.every((i) => !i.descripcion.trim())) {
       return setError("Agrega al menos un ítem con descripción.");
     }
     agregarCotizacion.mutate(
       {
-        descripcion: form.descripcion.trim(),
         items: form.items.filter((i) => i.descripcion.trim()),
         margenPct: form.margenPct,
         condicionesPago: form.condicionesPago,
@@ -645,10 +583,9 @@ function CotizacionesTab({
       },
       {
         onSuccess: () => {
-          setOk("Cotización creada y archivada en el historial.");
+          setOk("Cotización guardada.");
           setCreating(false);
           setForm({
-            descripcion: "",
             margenPct: 25,
             condicionesPago: "50% anticipo, 50% contra entrega",
             items: [crearItemVacio()],
@@ -688,191 +625,87 @@ function CotizacionesTab({
           onSubmit={guardar}
           className="mb-4 space-y-4 rounded-lg border border-border bg-surface p-4"
         >
-          <Field label="Descripción general" required>
-            <TextInput
-              value={form.descripcion}
-              onChange={(e) => setForm({ ...form, descripcion: e.target.value })}
-              placeholder="Ej. Cocina integral en nogal con isla"
-            />
-          </Field>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-muted-foreground">
+                  <th className="pb-2 pr-2 font-medium">Ítem</th>
+                  <th className="w-24 pb-2 pr-2 font-medium">Cantidad</th>
+                  <th className="w-32 pb-2 pr-2 font-medium">Precio unitario</th>
+                  <th className="w-32 pb-2 pr-2 font-medium">Precio total</th>
+                  <th className="w-8 pb-2"></th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border/50">
+                {form.items.map((it, i) => (
+                  <tr key={i}>
+                    <td className="py-1.5 pr-2">
+                      <TextInput
+                        value={it.descripcion}
+                        onChange={(e) => setItem(i, { descripcion: e.target.value })}
+                        placeholder="Descripción del ítem…"
+                      />
+                    </td>
+                    <td className="py-1.5 pr-2">
+                      <TextInput
+                        type="number"
+                        min={0}
+                        step="0.01"
+                        value={it.cantidad || ""}
+                        onChange={(e) => setItem(i, { cantidad: Number(e.target.value) })}
+                        placeholder="0"
+                      />
+                    </td>
+                    <td className="py-1.5 pr-2">
+                      <TextInput
+                        type="number"
+                        min={0}
+                        value={it.precioUnitario || ""}
+                        onChange={(e) => setItem(i, { precioUnitario: Number(e.target.value) })}
+                        placeholder="0"
+                      />
+                    </td>
+                    <td className="py-1.5 pr-2">
+                      <TextInput
+                        type="number"
+                        min={0}
+                        value={it.precioTotal || ""}
+                        onChange={(e) => setItem(i, { precioTotal: Number(e.target.value) })}
+                        placeholder="0"
+                      />
+                    </td>
+                    <td className="py-1.5">
+                      <button
+                        type="button"
+                        onClick={() => removeItem(i)}
+                        className="px-1 text-muted-foreground hover:text-destructive"
+                        title="Quitar ítem"
+                      >
+                        ✕
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <button
+              type="button"
+              onClick={addItem}
+              className="mt-2 flex items-center gap-1 text-xs text-primary hover:underline"
+            >
+              <Plus className="h-3.5 w-3.5" /> Agregar ítem
+            </button>
+          </div>
 
-          <div>
-            <div className="mb-2 flex items-center justify-between">
-              <div>
-                <span className="text-sm font-medium">Ítems</span>
-                <p className="text-xs text-muted-foreground">
-                  El costo de materiales se toma del catálogo base de Compras (cantidad × costo
-                  unitario). Usa <i>Ítem personalizado</i> si no está en el catálogo.
-                </p>
-              </div>
-              <Button type="button" variant="secondary" size="sm" onClick={addItem}>
-                <Plus className="h-3.5 w-3.5" /> Agregar ítem
-              </Button>
-            </div>
-            <div className="space-y-2">
-              {form.items.map((it, i) => {
-                const esCustom = it.materialBaseId === "__custom__";
-                const material =
-                  it.materialBaseId && it.materialBaseId !== "__custom__"
-                    ? materialesBase.find((m) => m.id === it.materialBaseId)
-                    : undefined;
-                return (
-                  <div key={i} className="rounded-md border border-border bg-surface-2 p-3">
-                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-12">
-                      <div className="sm:col-span-7">
-                        <label className="mb-1 block text-xs text-muted-foreground">
-                          Material del catálogo
-                        </label>
-                        <Select
-                          value={it.materialBaseId ?? ""}
-                          onChange={(e) => {
-                            const val = e.target.value;
-                            if (val === "__custom__") {
-                              setItem(i, {
-                                materialBaseId: "__custom__",
-                                descripcion: "",
-                                cantidad: 1,
-                                unidad: undefined,
-                                costoUnitario: 0,
-                                materiales: 0,
-                              });
-                            } else if (val === "") {
-                              setItem(i, {
-                                materialBaseId: undefined,
-                                descripcion: "",
-                                cantidad: undefined,
-                                unidad: undefined,
-                                costoUnitario: undefined,
-                                materiales: 0,
-                              });
-                            } else {
-                              const m = materialesBase.find((x) => x.id === val);
-                              if (!m) return;
-                              const qty = it.cantidad && it.cantidad > 0 ? it.cantidad : 1;
-                              setItem(i, {
-                                materialBaseId: m.id,
-                                descripcion: m.nombre,
-                                cantidad: qty,
-                                unidad: m.unidad,
-                                costoUnitario: m.costoUnitario,
-                                materiales: Math.round(qty * m.costoUnitario),
-                              });
-                            }
-                          }}
-                        >
-                          <option value="">Selecciona del catálogo…</option>
-                          {materialesBase.map((m) => (
-                            <option key={m.id} value={m.id}>
-                              {m.nombre} — {formatCOP(m.costoUnitario)}/{m.unidad}
-                            </option>
-                          ))}
-                          <option value="__custom__">+ Ítem personalizado (no en catálogo)</option>
-                        </Select>
-                      </div>
-                      <div className="sm:col-span-2">
-                        <label className="mb-1 block text-xs text-muted-foreground">
-                          Cantidad {material ? `(${material.unidad})` : ""}
-                        </label>
-                        <TextInput
-                          type="number"
-                          min={0}
-                          step="0.01"
-                          disabled={!it.materialBaseId || esCustom}
-                          value={it.cantidad ?? ""}
-                          onChange={(e) => {
-                            const qty = Number(e.target.value);
-                            const cu = it.costoUnitario ?? 0;
-                            setItem(i, {
-                              cantidad: qty,
-                              materiales: Math.round((qty || 0) * cu),
-                            });
-                          }}
-                          placeholder="0"
-                        />
-                      </div>
-                      <div className="sm:col-span-2">
-                        <label className="mb-1 block text-xs text-muted-foreground">
-                          Mano obra (COP)
-                        </label>
-                        <TextInput
-                          type="number"
-                          min={0}
-                          value={it.manoObra || ""}
-                          onChange={(e) => setItem(i, { manoObra: Number(e.target.value) })}
-                          placeholder="0"
-                        />
-                      </div>
-                      <div className="flex items-end justify-end sm:col-span-1">
-                        <button
-                          type="button"
-                          onClick={() => removeItem(i)}
-                          className="h-9 px-2 text-xs text-muted-foreground hover:text-destructive"
-                          title="Quitar ítem"
-                        >
-                          ✕
-                        </button>
-                      </div>
-                    </div>
-
-                    {esCustom && (
-                      <div className="mt-2 grid grid-cols-1 gap-2 rounded-md border border-dashed border-border p-2 sm:grid-cols-12">
-                        <div className="sm:col-span-8">
-                          <label className="mb-1 block text-xs text-muted-foreground">
-                            Descripción del ítem personalizado
-                          </label>
-                          <TextInput
-                            placeholder="Ej. Pieza especial sobre medida"
-                            value={it.descripcion}
-                            onChange={(e) => setItem(i, { descripcion: e.target.value })}
-                          />
-                        </div>
-                        <div className="sm:col-span-4">
-                          <label className="mb-1 block text-xs text-muted-foreground">
-                            Costo materiales (COP)
-                          </label>
-                          <TextInput
-                            type="number"
-                            min={0}
-                            value={it.materiales || ""}
-                            onChange={(e) => setItem(i, { materiales: Number(e.target.value) })}
-                          />
-                        </div>
-                      </div>
-                    )}
-
-                    {(material || esCustom) && (
-                      <div className="mt-2 flex flex-wrap items-center justify-between gap-2 border-t border-border pt-2 text-xs">
-                        <div className="text-muted-foreground">
-                          {material ? (
-                            <>
-                              {it.cantidad || 0} {material.unidad} ×{" "}
-                              {formatCOP(material.costoUnitario)}
-                            </>
-                          ) : (
-                            <span className="text-warning-foreground">
-                              Ítem fuera del catálogo · sugerir a Compras agregarlo
-                            </span>
-                          )}
-                        </div>
-                        <div className="tabular-nums">
-                          Materiales: <b>{formatCOP(it.materiales || 0)}</b>
-                          {(it.manoObra || 0) > 0 && (
-                            <>
-                              {" "}
-                              · Mano obra: <b>{formatCOP(it.manoObra)}</b>
-                            </>
-                          )}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
+          <div className="rounded-md bg-surface-2 px-3 py-2 text-sm">
+            <div className="flex justify-between text-muted-foreground">
+              <span>Subtotal</span>
+              <span className="tabular-nums">{formatCOP(subtotal)}</span>
             </div>
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Margen (%)" required>
+            <Field label="Margen de ganancia (%)" required>
               <TextInput
                 type="number"
                 min={0}
@@ -889,7 +722,7 @@ function CotizacionesTab({
           </div>
 
           <div className="flex items-center justify-between rounded-md bg-surface-2 px-3 py-2">
-            <span className="text-sm text-muted-foreground">Total calculado</span>
+            <span className="text-sm text-muted-foreground">Total (con margen)</span>
             <span className="text-lg font-semibold tabular-nums">{formatCOP(total)}</span>
           </div>
 
@@ -908,7 +741,7 @@ function CotizacionesTab({
         <EmptyState
           icon={Receipt}
           title="Sin cotizaciones"
-          description="Crea la primera cotización del proyecto. El total se calcula automáticamente."
+          description="Crea la primera cotización del proyecto."
         />
       ) : (
         <ul className="space-y-3">
@@ -920,45 +753,39 @@ function CotizacionesTab({
                     Cotización #{proyecto.cotizaciones.length - idx} ·{" "}
                     <span className="font-normal text-muted-foreground">{c.fecha}</span>
                   </div>
-                  <div className="text-xs text-muted-foreground">
-                    {c.descripcion} · creada por {c.creadaPor}
-                  </div>
+                  <div className="text-xs text-muted-foreground">Creada por {c.creadaPor}</div>
                 </div>
                 <div className="text-right">
                   <div className="text-base font-semibold tabular-nums">{formatCOP(c.total)}</div>
                   <div className="text-xs text-muted-foreground">margen {c.margenPct}%</div>
                 </div>
               </header>
-              <table className="w-full text-sm">
-                <thead className="text-left text-xs uppercase tracking-wide text-muted-foreground">
-                  <tr>
-                    <th className="px-4 py-2 font-medium">Ítem</th>
-                    <th className="px-4 py-2 font-medium tabular-nums">Materiales</th>
-                    <th className="px-4 py-2 font-medium tabular-nums">Mano obra</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border">
-                  {c.items.map((it, i) => (
-                    <tr key={i}>
-                      <td className="px-4 py-2">
-                        <div>{it.descripcion}</div>
-                        {it.cantidad != null && it.unidad && it.costoUnitario != null ? (
-                          <div className="text-xs text-muted-foreground">
-                            {it.cantidad} {it.unidad} × {formatCOP(it.costoUnitario)}
-                            {it.materialBaseId && it.materialBaseId !== "__custom__" && (
-                              <span className="ml-1 rounded bg-surface-2 px-1.5 py-0.5">
-                                catálogo
-                              </span>
-                            )}
-                          </div>
-                        ) : null}
-                      </td>
-                      <td className="px-4 py-2 tabular-nums">{formatCOP(it.materiales)}</td>
-                      <td className="px-4 py-2 tabular-nums">{formatCOP(it.manoObra)}</td>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="text-left text-xs uppercase tracking-wide text-muted-foreground">
+                    <tr className="border-b border-border">
+                      <th className="px-4 py-2 font-medium">Ítem</th>
+                      <th className="px-4 py-2 font-medium tabular-nums">Cantidad</th>
+                      <th className="px-4 py-2 font-medium tabular-nums">Precio unitario</th>
+                      <th className="px-4 py-2 font-medium tabular-nums">Precio total</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {c.items.map((it, i) => (
+                      <tr key={i}>
+                        <td className="px-4 py-2">{it.descripcion}</td>
+                        <td className="px-4 py-2 tabular-nums">{it.cantidad ?? "—"}</td>
+                        <td className="px-4 py-2 tabular-nums">
+                          {it.precioUnitario != null ? formatCOP(it.precioUnitario) : "—"}
+                        </td>
+                        <td className="px-4 py-2 tabular-nums">
+                          {it.precioTotal != null ? formatCOP(it.precioTotal) : "—"}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
               <div className="border-t border-border bg-surface-2 px-4 py-2 text-xs text-muted-foreground">
                 Condiciones: {c.condicionesPago}
               </div>

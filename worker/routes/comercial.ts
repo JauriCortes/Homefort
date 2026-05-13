@@ -127,6 +127,27 @@ comercial.patch("/clientes/:id", requireAuth, requireArea("comercial"), async (c
   return c.json({ ...cliente, ...patch });
 });
 
+comercial.delete("/clientes/:id", requireAuth, requireArea("comercial"), async (c) => {
+  const db = drizzle(c.env.DB);
+  const [cliente] = await db
+    .select()
+    .from(clientes)
+    .where(eq(clientes.id, c.req.param("id")))
+    .limit(1);
+  if (!cliente) return c.json({ error: "Cliente no encontrado" }, 404);
+
+  const proyectosCliente = await db
+    .select()
+    .from(proyectos)
+    .where(eq(proyectos.clienteId, cliente.id));
+  if (proyectosCliente.length > 0) {
+    return c.json({ error: "No se puede eliminar un cliente con proyectos asociados" }, 422);
+  }
+
+  await db.delete(clientes).where(eq(clientes.id, cliente.id));
+  return c.json({ ok: true });
+});
+
 // ── Proyectos ─────────────────────────────────────────────────────────────────
 
 comercial.get("/proyectos", requireAuth, async (c) => {
@@ -141,13 +162,25 @@ comercial.get("/proyectos", requireAuth, async (c) => {
 });
 
 comercial.post("/proyectos", requireAuth, requireArea("comercial"), async (c) => {
-  const { clienteId, tipo, fechaSolicitud } = await c.req.json<{
+  const {
+    clienteId,
+    titulo,
+    descripcionProyecto,
+    aspectos,
+    caracteristicas,
+    fechaEntrega,
+    especificacionInicial,
+  } = await c.req.json<{
     clienteId: string;
-    tipo: string;
-    fechaSolicitud: string;
+    titulo: string;
+    descripcionProyecto?: string;
+    aspectos?: string;
+    caracteristicas?: string;
+    fechaEntrega?: string;
+    especificacionInicial?: string;
   }>();
-  if (!clienteId || !tipo || !fechaSolicitud) {
-    return c.json({ error: "clienteId, tipo y fechaSolicitud son obligatorios" }, 400);
+  if (!clienteId || !titulo?.trim()) {
+    return c.json({ error: "clienteId y titulo son obligatorios" }, 400);
   }
   const db = drizzle(c.env.DB);
   const [cliente] = await db.select().from(clientes).where(eq(clientes.id, clienteId)).limit(1);
@@ -162,13 +195,37 @@ comercial.post("/proyectos", requireAuth, requireArea("comercial"), async (c) =>
     id: nuevoId("p"),
     codigo: `PRY-${year}-${String(n).padStart(3, "0")}`,
     clienteId,
-    tipo,
-    fechaSolicitud,
+    tipo: titulo.trim(),
+    titulo: titulo.trim(),
+    descripcionProyecto: descripcionProyecto?.trim() ?? "",
+    aspectos: aspectos?.trim() ?? "",
+    caracteristicas: caracteristicas?.trim() ?? "",
+    fechaSolicitud: hoy,
+    fechaEntrega: fechaEntrega ?? null,
     estado: "Solicitud",
     ultimaActualizacion: hoy,
   };
   await db.insert(proyectos).values(nuevo);
-  return c.json({ ...nuevo, especificaciones: [], cotizaciones: [], cambios: [] }, 201);
+
+  let especs: (typeof especificaciones.$inferSelect)[] = [];
+  if (especificacionInicial?.trim()) {
+    const espec = {
+      id: nuevoId("esp"),
+      proyectoId: nuevo.id,
+      version: 1,
+      contenido: especificacionInicial.trim(),
+      medidas: "",
+      materiales: "",
+      acabados: "",
+      observaciones: "",
+      actualizadoEn: hoy,
+      actualizadoPor: "—",
+    };
+    await db.insert(especificaciones).values(espec);
+    especs = [espec];
+  }
+
+  return c.json({ ...nuevo, especificaciones: especs, cotizaciones: [], cambios: [] }, 201);
 });
 
 comercial.get("/proyectos/:id", requireAuth, async (c) => {
@@ -212,15 +269,12 @@ comercial.post(
   requireAuth,
   requireArea("comercial"),
   async (c) => {
-    const { medidas, materiales, acabados, observaciones, actualizadoPor } = await c.req.json<{
-      medidas: string;
-      materiales: string;
-      acabados: string;
-      observaciones?: string;
-      actualizadoPor: string;
+    const { contenido, actualizadoPor } = await c.req.json<{
+      contenido: string;
+      actualizadoPor?: string;
     }>();
-    if (!medidas?.trim() || !materiales?.trim() || !acabados?.trim()) {
-      return c.json({ error: "medidas, materiales y acabados son obligatorios" }, 400);
+    if (!contenido?.trim()) {
+      return c.json({ error: "contenido es obligatorio" }, 400);
     }
     const db = drizzle(c.env.DB);
     const [proyecto] = await db
@@ -239,10 +293,11 @@ comercial.post(
       id: nuevoId("esp"),
       proyectoId: proyecto.id,
       version: especs.length + 1,
-      medidas: medidas.trim(),
-      materiales: materiales.trim(),
-      acabados: acabados.trim(),
-      observaciones: observaciones?.trim() ?? "",
+      contenido: contenido.trim(),
+      medidas: "",
+      materiales: "",
+      acabados: "",
+      observaciones: "",
       actualizadoEn: new Date().toISOString().slice(0, 10),
       actualizadoPor: actualizadoPor ?? "—",
     };
@@ -259,18 +314,16 @@ comercial.post(
 // ── Cotizaciones ──────────────────────────────────────────────────────────────
 
 comercial.post("/proyectos/:id/cotizaciones", requireAuth, requireArea("comercial"), async (c) => {
-  const { fecha, descripcion, items, margenPct, condicionesPago, total, creadaPor } =
-    await c.req.json<{
-      fecha?: string;
-      descripcion: string;
-      items: unknown[];
-      margenPct: number;
-      condicionesPago: string;
-      total: number;
-      creadaPor: string;
-    }>();
-  if (!descripcion?.trim() || !items?.length) {
-    return c.json({ error: "descripcion e items son obligatorios" }, 400);
+  const { fecha, items, margenPct, condicionesPago, total, creadaPor } = await c.req.json<{
+    fecha?: string;
+    items: unknown[];
+    margenPct: number;
+    condicionesPago: string;
+    total: number;
+    creadaPor: string;
+  }>();
+  if (!items?.length) {
+    return c.json({ error: "items es obligatorio" }, 400);
   }
   const db = drizzle(c.env.DB);
   const [proyecto] = await db
@@ -284,7 +337,7 @@ comercial.post("/proyectos/:id/cotizaciones", requireAuth, requireArea("comercia
     id: nuevoId("q"),
     proyectoId: proyecto.id,
     fecha: fecha ?? new Date().toISOString().slice(0, 10),
-    descripcion: descripcion.trim(),
+    descripcion: proyecto.titulo || proyecto.tipo,
     items: JSON.stringify(items),
     margenPct,
     condicionesPago,

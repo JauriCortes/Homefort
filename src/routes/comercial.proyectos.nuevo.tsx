@@ -4,7 +4,6 @@ import { ArrowLeft } from "lucide-react";
 import { z } from "zod";
 import { useMe } from "@/hooks/api/use-auth";
 import { useClientes, useCrearProyecto } from "@/hooks/api/use-comercial";
-import type { TipoProyecto } from "@/lib/store";
 import {
   PageHeader,
   ErrorBanner,
@@ -12,7 +11,7 @@ import {
   SuccessBanner,
   EmptyState,
 } from "@/components/ui-bits";
-import { Field, Select, TextInput, Button } from "@/components/form-bits";
+import { Field, Select, TextInput, TextArea, Button } from "@/components/form-bits";
 
 const searchSchema = z.object({
   clienteId: z.string().optional(),
@@ -22,15 +21,6 @@ export const Route = createFileRoute("/comercial/proyectos/nuevo")({
   validateSearch: searchSchema,
   component: NuevoProyecto,
 });
-
-const TIPOS: TipoProyecto[] = [
-  "Cocina integral",
-  "Closet",
-  "Mobiliario oficina",
-  "Puertas",
-  "Mobiliario comercial",
-  "Otro",
-];
 
 function NuevoProyecto() {
   const search = Route.useSearch();
@@ -42,8 +32,12 @@ function NuevoProyecto() {
 
   const [form, setForm] = useState({
     clienteId: search.clienteId ?? "",
-    tipo: "Cocina integral" as TipoProyecto,
-    fechaSolicitud: new Date().toISOString().slice(0, 10),
+    titulo: "",
+    descripcionProyecto: "",
+    aspectos: "",
+    caracteristicas: "",
+    fechaEntrega: "",
+    especificacionInicial: "",
   });
   const [error, setError] = useState<string | null>(null);
   const [okMsg, setOkMsg] = useState<string | null>(null);
@@ -81,12 +75,20 @@ function NuevoProyecto() {
     setOkMsg(null);
     if (!puedeEditar) return setError("No tienes permisos para crear proyectos.");
     if (!form.clienteId) return setError("Selecciona un cliente para el proyecto.");
-    if (!form.fechaSolicitud) return setError("La fecha de solicitud es obligatoria.");
+    if (!form.titulo.trim()) return setError("El nombre del proyecto es obligatorio.");
     crearProyecto.mutate(
-      { clienteId: form.clienteId, tipo: form.tipo, fechaSolicitud: form.fechaSolicitud },
+      {
+        clienteId: form.clienteId,
+        titulo: form.titulo.trim(),
+        descripcionProyecto: form.descripcionProyecto.trim(),
+        aspectos: form.aspectos.trim(),
+        caracteristicas: form.caracteristicas.trim(),
+        fechaEntrega: form.fechaEntrega || undefined,
+        especificacionInicial: form.especificacionInicial.trim() || undefined,
+      },
       {
         onSuccess: (proyecto) => {
-          setOkMsg("Proyecto creado en estado Solicitud. Redirigiendo...");
+          setOkMsg("Proyecto creado. Redirigiendo…");
           setTimeout(
             () => navigate({ to: "/comercial/proyectos/$id", params: { id: proyecto.id } }),
             600,
@@ -136,29 +138,68 @@ function NuevoProyecto() {
             ))}
           </Select>
         </Field>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <Field label="Tipo de proyecto" required>
-            <Select
-              disabled={!puedeEditar}
-              value={form.tipo}
-              onChange={(e) => setForm({ ...form, tipo: e.target.value as TipoProyecto })}
-            >
-              {TIPOS.map((t) => (
-                <option key={t} value={t}>
-                  {t}
-                </option>
-              ))}
-            </Select>
-          </Field>
-          <Field label="Fecha de solicitud" required>
-            <TextInput
-              disabled={!puedeEditar}
-              type="date"
-              value={form.fechaSolicitud}
-              onChange={(e) => setForm({ ...form, fechaSolicitud: e.target.value })}
-            />
-          </Field>
-        </div>
+
+        <Field label="Nombre del proyecto" required>
+          <TextInput
+            disabled={!puedeEditar}
+            value={form.titulo}
+            onChange={(e) => setForm({ ...form, titulo: e.target.value })}
+            placeholder="Ej. Cocina integral apartamento 302"
+          />
+        </Field>
+
+        <Field label="Descripción del proyecto">
+          <TextArea
+            disabled={!puedeEditar}
+            value={form.descripcionProyecto}
+            onChange={(e) => setForm({ ...form, descripcionProyecto: e.target.value })}
+            placeholder="Describe el alcance general del proyecto…"
+            rows={3}
+          />
+        </Field>
+
+        <Field label="Aspectos del proyecto">
+          <TextArea
+            disabled={!puedeEditar}
+            value={form.aspectos}
+            onChange={(e) => setForm({ ...form, aspectos: e.target.value })}
+            placeholder="Condiciones especiales, restricciones de espacio, preferencias del cliente…"
+            rows={3}
+          />
+        </Field>
+
+        <Field label="Características específicas" hint="Requerimientos funcionales del mueble.">
+          <TextArea
+            disabled={!puedeEditar}
+            value={form.caracteristicas}
+            onChange={(e) => setForm({ ...form, caracteristicas: e.target.value })}
+            placeholder="Ej. Cajones con cierre suave, iluminación LED interior, bisagras Blum…"
+            rows={3}
+          />
+        </Field>
+
+        <Field label="Fecha tentativa de entrega">
+          <TextInput
+            disabled={!puedeEditar}
+            type="date"
+            value={form.fechaEntrega}
+            onChange={(e) => setForm({ ...form, fechaEntrega: e.target.value })}
+          />
+        </Field>
+
+        <Field
+          label="Especificación inicial"
+          hint="Opcional. Puedes completarla luego desde el proyecto."
+        >
+          <TextArea
+            disabled={!puedeEditar}
+            value={form.especificacionInicial}
+            onChange={(e) => setForm({ ...form, especificacionInicial: e.target.value })}
+            placeholder="Describe medidas, materiales, acabados u otros detalles técnicos…"
+            rows={4}
+          />
+        </Field>
+
         <div className="flex flex-wrap justify-end gap-2 pt-2">
           <Link
             to="/comercial/proyectos"

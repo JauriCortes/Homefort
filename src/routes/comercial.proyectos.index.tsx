@@ -21,7 +21,7 @@ function ProyectosList() {
 
   const lista = proyectos.filter((p) => {
     const cliente = clientes.find((c) => c.id === p.clienteId);
-    const text = `${p.codigo} ${p.tipo} ${cliente?.nombre ?? ""}`.toLowerCase();
+    const text = `${p.codigo} ${p.titulo || p.tipo} ${cliente?.nombre ?? ""}`.toLowerCase();
     return text.includes(q.toLowerCase()) && (estado ? p.estado === estado : true);
   });
 
@@ -114,7 +114,7 @@ function ProyectosList() {
                         {cli && <TipoClienteBadge tipo={cli.tipo} />}
                       </div>
                     </td>
-                    <td className="px-4 py-2.5">{p.tipo}</td>
+                    <td className="px-4 py-2.5">{p.titulo || p.tipo}</td>
                     <td className="px-4 py-2.5 text-muted-foreground">{p.fechaSolicitud}</td>
                     <td className="px-4 py-2.5">
                       <EstadoBadge estado={p.estado} />
@@ -146,9 +146,9 @@ function ProyectosList() {
                   >
                     <div className="flex items-center justify-between gap-2">
                       <div className="min-w-0">
-                        <div className="truncate text-sm font-medium">{p.codigo}</div>
+                        <div className="truncate text-sm font-medium">{p.titulo || p.codigo}</div>
                         <div className="truncate text-xs text-muted-foreground">
-                          {cli?.nombre ?? "—"} · {p.tipo}
+                          {cli?.nombre ?? "—"} · {p.titulo || p.tipo}
                         </div>
                       </div>
                       <EstadoBadge estado={p.estado} />

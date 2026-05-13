@@ -1,11 +1,4 @@
-import {
-  sqliteTable,
-  text,
-  integer,
-  real,
-  index,
-  uniqueIndex,
-} from "drizzle-orm/sqlite-core";
+import { sqliteTable, text, integer, real, index, uniqueIndex } from "drizzle-orm/sqlite-core";
 
 // ─── USUARIOS ──────────────────────────────────────────────
 
@@ -50,7 +43,12 @@ export const proyectos = sqliteTable(
       .notNull()
       .references(() => clientes.id),
     tipo: text("tipo").notNull(),
+    titulo: text("titulo").notNull().default(""),
+    descripcionProyecto: text("descripcion_proyecto").notNull().default(""),
+    aspectos: text("aspectos").notNull().default(""),
+    caracteristicas: text("caracteristicas").notNull().default(""),
     fechaSolicitud: text("fecha_solicitud").notNull(),
+    fechaEntrega: text("fecha_entrega"),
     estado: text("estado").notNull().default("Solicitud"),
     ultimaActualizacion: text("ultima_actualizacion").notNull(),
   },
@@ -70,9 +68,10 @@ export const especificaciones = sqliteTable(
       .notNull()
       .references(() => proyectos.id, { onDelete: "cascade" }),
     version: integer("version").notNull(),
-    medidas: text("medidas").notNull(),
-    materiales: text("materiales").notNull(),
-    acabados: text("acabados").notNull(),
+    contenido: text("contenido").notNull().default(""),
+    medidas: text("medidas").notNull().default(""),
+    materiales: text("materiales").notNull().default(""),
+    acabados: text("acabados").notNull().default(""),
     observaciones: text("observaciones").notNull().default(""),
     actualizadoEn: text("actualizado_en").notNull(),
     actualizadoPor: text("actualizado_por").notNull(),
@@ -154,10 +153,7 @@ export const movimientosInventario = sqliteTable(
     responsable: text("responsable").notNull(),
     notas: text("notas"),
   },
-  (t) => [
-    index("idx_mov_material").on(t.materialId),
-    index("idx_mov_proyecto").on(t.proyectoId),
-  ],
+  (t) => [index("idx_mov_material").on(t.materialId), index("idx_mov_proyecto").on(t.proyectoId)],
 );
 
 export const solicitudesCompra = sqliteTable(
@@ -235,10 +231,7 @@ export const ordenesProduccion = sqliteTable(
     responsable: text("responsable").notNull(),
     notas: text("notas"),
   },
-  (t) => [
-    uniqueIndex("uq_op_numero").on(t.numero),
-    index("idx_op_proyecto").on(t.proyectoId),
-  ],
+  (t) => [uniqueIndex("uq_op_numero").on(t.numero), index("idx_op_proyecto").on(t.proyectoId)],
 );
 
 export const facturas = sqliteTable(
@@ -414,10 +407,7 @@ export const ordenesGarantia = sqliteTable(
     etapas: text("etapas").notNull().default("[]"), // JSON: EtapaGarantia[]
     costos: text("costos").notNull().default("[]"), // JSON: {concepto,monto,fecha}[]
   },
-  (t) => [
-    uniqueIndex("uq_og_numero").on(t.numero),
-    index("idx_og_proyecto").on(t.proyectoId),
-  ],
+  (t) => [uniqueIndex("uq_og_numero").on(t.numero), index("idx_og_proyecto").on(t.proyectoId)],
 );
 
 // ─── Inferred types (útiles en las rutas de la API) ────────

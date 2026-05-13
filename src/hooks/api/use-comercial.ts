@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api-client";
-import type { Cliente, Proyecto, TipoCliente, TipoProyecto, CotizacionItem } from "@/lib/store";
+import type { Cliente, Proyecto, TipoCliente, CotizacionItem } from "@/lib/store";
 
 // La API devuelve empresa como null en vez de undefined
 export type ClienteAPI = Omit<Cliente, "empresa"> & { empresa: string | null };
@@ -67,6 +67,16 @@ export function useActualizarCliente() {
   });
 }
 
+export function useEliminarCliente() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.delete<{ ok: boolean }>(`/comercial/clientes/${id}`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: comercialKeys.clientes.all() });
+    },
+  });
+}
+
 // ── Proyectos ─────────────────────────────────────────────────────────────────
 
 export function useProyectos(params?: { clienteId?: string }) {
@@ -88,8 +98,15 @@ export function useProyecto(id: string) {
 export function useCrearProyecto() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (data: { clienteId: string; tipo: TipoProyecto; fechaSolicitud: string }) =>
-      api.post<Proyecto>("/comercial/proyectos", data),
+    mutationFn: (data: {
+      clienteId: string;
+      titulo: string;
+      descripcionProyecto?: string;
+      aspectos?: string;
+      caracteristicas?: string;
+      fechaEntrega?: string;
+      especificacionInicial?: string;
+    }) => api.post<Proyecto>("/comercial/proyectos", data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: comercialKeys.proyectos.all() });
     },
@@ -111,13 +128,8 @@ export function useActualizarEstadoProyecto(proyectoId: string) {
 export function useAgregarEspecificacion(proyectoId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (data: {
-      medidas: string;
-      materiales: string;
-      acabados: string;
-      observaciones?: string;
-      actualizadoPor: string;
-    }) => api.post(`/comercial/proyectos/${proyectoId}/especificaciones`, data),
+    mutationFn: (data: { contenido: string; actualizadoPor?: string }) =>
+      api.post(`/comercial/proyectos/${proyectoId}/especificaciones`, data),
     onSuccess: () => {
       qc.invalidateQueries({
         queryKey: comercialKeys.proyectos.detail(proyectoId),
@@ -130,7 +142,6 @@ export function useAgregarCotizacion(proyectoId: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (data: {
-      descripcion: string;
       items: CotizacionItem[];
       margenPct: number;
       condicionesPago: string;
