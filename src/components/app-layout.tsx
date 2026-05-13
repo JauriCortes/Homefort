@@ -23,8 +23,8 @@ import {
   ListFilter,
   Store,
 } from "lucide-react";
-import { useSesion } from "@/hooks/use-store";
-import { store, AREAS_LABEL } from "@/lib/store";
+import { useMe, useLogout } from "@/hooks/api/use-auth";
+import { AREAS_LABEL } from "@/lib/store";
 
 interface NavItem {
   to: string;
@@ -86,15 +86,14 @@ const NAV_SECTIONS: SectionDef[] = [
 ];
 
 function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
-  const usuario = useSesion();
+  const { data: usuario } = useMe();
+  const logout = useLogout();
   const location = useLocation();
-  const navigate = useNavigate();
   if (!usuario) return null;
 
   const handleLogout = () => {
-    store.logout();
     onNavigate?.();
-    navigate({ to: "/login" });
+    logout.mutate();
   };
 
   const isActive = (to: string) => {
@@ -191,19 +190,15 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
 
 export function AppLayout() {
   const [mobileOpen, setMobileOpen] = useState(false);
-  const usuario = useSesion();
+  const { data: usuario, isLoading } = useMe();
   const navigate = useNavigate();
   const location = useLocation();
 
   useEffect(() => {
-    if (!usuario && location.pathname !== "/login") {
+    if (!isLoading && !usuario && location.pathname !== "/login") {
       navigate({ to: "/login" });
     }
-  }, [usuario, location.pathname, navigate]);
-
-  useEffect(() => {
-    store.registrarActividad();
-  }, [location.pathname]);
+  }, [usuario, isLoading, location.pathname, navigate]);
 
   if (location.pathname === "/login") {
     return <Outlet />;

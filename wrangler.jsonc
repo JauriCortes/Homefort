@@ -1,7 +1,19 @@
 {
-  "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "tanstack-start-app",
-  "compatibility_date": "2025-09-24",
-  "compatibility_flags": ["nodejs_compat"],
-  "main": "@tanstack/react-start/server-entry",
+	"$schema": "node_modules/wrangler/config-schema.json",
+	"name": "homefort",
+	"compatibility_date": "2025-09-24",
+	"compatibility_flags": ["nodejs_compat"],
+	"main": "worker/index.ts",
+	"d1_databases": [
+		{
+			"binding": "DB",
+			"database_name": "homefort-db",
+			"database_id": "2d89955d-80cd-4954-aae2-7914fdebdfb9",
+			"migrations_dir": "worker/db/migrations"
+		}
+	],
+	"assets": {
+		"directory": "./dist/client",
+		"binding": "ASSETS"
+	}
 }
