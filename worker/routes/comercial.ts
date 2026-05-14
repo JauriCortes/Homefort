@@ -1,7 +1,16 @@
 import { Hono } from "hono";
 import { drizzle } from "drizzle-orm/d1";
-import { eq, asc } from "drizzle-orm";
-import { clientes, proyectos, especificaciones, cotizaciones, cambiosProyecto } from "../db/schema";
+import { eq, asc, desc } from "drizzle-orm";
+import {
+  clientes,
+  proyectos,
+  especificaciones,
+  cotizaciones,
+  cambiosProyecto,
+  solicitudesCompra,
+  materialesBase,
+  movimientosInventario,
+} from "../db/schema";
 import { requireAuth, requireArea, type JWTPayload } from "../middleware/auth";
 import type { Env } from "../index";
 
@@ -164,6 +173,54 @@ comercial.delete("/clientes/:id", requireAuth, requireArea("comercial"), async (
   return c.json({ ok: true });
 });
 
+// ── Items histórico de cotizaciones ─────────────────────────────────────────
+
+comercial.get("/cotizaciones/items-historico", requireAuth, async (c) => {
+  const db = drizzle(c.env.DB);
+  const todas = await db
+    .select({ items: cotizaciones.items })
+    .from(cotizaciones)
+    .orderBy(asc(cotizaciones.fecha));
+
+  const itemMap = new Map<string, { descripcion: string; precioUnitario: number }>();
+  for (const cot of todas) {
+    const items = JSON.parse(cot.items) as { descripcion: string; precioUnitario: number }[];
+    for (const it of items) {
+      const key = it.descripcion.trim().toLowerCase();
+      if (key) {
+        itemMap.set(key, {
+          descripcion: it.descripcion.trim(),
+          precioUnitario: it.precioUnitario ?? 0,
+        });
+      }
+    }
+  }
+
+  return c.json(Array.from(itemMap.values()));
+});
+
+// ── Stock de materiales ───────────────────────────────────────────────────────
+
+comercial.get("/materiales-stock", requireAuth, async (c) => {
+  const db = drizzle(c.env.DB);
+  const [materiales, movimientos] = await Promise.all([
+    db.select().from(materialesBase),
+    db.select().from(movimientosInventario),
+  ]);
+
+  const result = materiales.map((m) => {
+    const stock = movimientos
+      .filter((mv) => mv.materialId === m.id)
+      .reduce((acc, mv) => {
+        if (mv.tipo === "entrada" || mv.tipo === "ajuste") return acc + mv.cantidad;
+        return acc - mv.cantidad;
+      }, 0);
+    return { id: m.id, nombre: m.nombre, stockDisponible: stock, unidad: m.unidad };
+  });
+
+  return c.json(result);
+});
+
 // ── Proyectos ─────────────────────────────────────────────────────────────────
 
 comercial.get("/proyectos", requireAuth, async (c) => {
@@ -218,7 +275,7 @@ comercial.post("/proyectos", requireAuth, requireArea("comercial"), async (c) =>
     caracteristicas: caracteristicas?.trim() ?? "",
     fechaSolicitud: hoy,
     fechaEntrega: fechaEntrega ?? null,
-    estado: "Solicitud",
+    estado: "En definición",
     ultimaActualizacion: hoy,
   };
   await db.insert(proyectos).values(nuevo);
@@ -272,7 +329,31 @@ comercial.patch("/proyectos/:id/estado", requireAuth, requireArea("comercial"), 
     .set({ estado, ultimaActualizacion: hoy })
     .where(eq(proyectos.id, proyecto.id));
 
-  // TODO(Phase 3 — Compras): crear SolicitudCompra automática cuando estado === "Aprobada"
+  if (estado === "Aprobada") {
+    const [ultimaCot] = await db
+      .select()
+      .from(cotizaciones)
+      .where(eq(cotizaciones.proyectoId, proyecto.id))
+      .orderBy(desc(cotizaciones.fecha))
+      .limit(1);
+
+    if (ultimaCot) {
+      const cotItems = JSON.parse(ultimaCot.items) as {
+        descripcion: string;
+        cantidad: number;
+      }[];
+      await db.insert(solicitudesCompra).values({
+        id: nuevoId("sc"),
+        proyectoId: proyecto.id,
+        fechaCreacion: hoy,
+        estado: "pendiente",
+        items: JSON.stringify(
+          cotItems.map((it) => ({ descripcion: it.descripcion, cantidad: it.cantidad })),
+        ),
+        generadaAutomaticamente: true,
+      });
+    }
+  }
 
   const updated = await fetchProyectoCompleto(db, proyecto.id);
   return c.json(updated);

@@ -5,6 +5,9 @@ import type { Cliente, Proyecto, TipoCliente, CotizacionItem } from "@/lib/store
 // La API devuelve empresa como null en vez de undefined
 export type ClienteAPI = Omit<Cliente, "empresa"> & { empresa: string | null };
 
+export type ItemHistorico = { descripcion: string; precioUnitario: number };
+export type MaterialStock = { id: string; nombre: string; stockDisponible: number; unidad: string };
+
 // El endpoint de lista devuelve proyectos sin arrays embebidos
 export type ProyectoBase = Omit<Proyecto, "especificaciones" | "cotizaciones" | "cambios">;
 
@@ -163,6 +166,20 @@ export function useAgregarCotizacion(proyectoId: string) {
         queryKey: comercialKeys.proyectos.detail(proyectoId),
       });
     },
+  });
+}
+
+export function useItemsHistorico() {
+  return useQuery({
+    queryKey: ["comercial", "cotizaciones", "items-historico"],
+    queryFn: () => api.get<ItemHistorico[]>("/comercial/cotizaciones/items-historico"),
+  });
+}
+
+export function useMaterialesStock() {
+  return useQuery({
+    queryKey: ["comercial", "materiales-stock"],
+    queryFn: () => api.get<MaterialStock[]>("/comercial/materiales-stock"),
   });
 }
 

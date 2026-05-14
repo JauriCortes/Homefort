@@ -33,11 +33,8 @@ function NuevoProyecto() {
   const [form, setForm] = useState({
     clienteId: search.clienteId ?? "",
     titulo: "",
-    descripcionProyecto: "",
-    aspectos: "",
-    caracteristicas: "",
-    fechaEntrega: "",
     especificacionInicial: "",
+    fechaEntrega: "",
   });
   const [error, setError] = useState<string | null>(null);
   const [okMsg, setOkMsg] = useState<string | null>(null);
@@ -80,9 +77,6 @@ function NuevoProyecto() {
       {
         clienteId: form.clienteId,
         titulo: form.titulo.trim(),
-        descripcionProyecto: form.descripcionProyecto.trim(),
-        aspectos: form.aspectos.trim(),
-        caracteristicas: form.caracteristicas.trim(),
         fechaEntrega: form.fechaEntrega || undefined,
         especificacionInicial: form.especificacionInicial.trim() || undefined,
       },
@@ -148,36 +142,6 @@ function NuevoProyecto() {
           />
         </Field>
 
-        <Field label="Descripción del proyecto">
-          <TextArea
-            disabled={!puedeEditar}
-            value={form.descripcionProyecto}
-            onChange={(e) => setForm({ ...form, descripcionProyecto: e.target.value })}
-            placeholder="Describe el alcance general del proyecto…"
-            rows={3}
-          />
-        </Field>
-
-        <Field label="Aspectos del proyecto">
-          <TextArea
-            disabled={!puedeEditar}
-            value={form.aspectos}
-            onChange={(e) => setForm({ ...form, aspectos: e.target.value })}
-            placeholder="Condiciones especiales, restricciones de espacio, preferencias del cliente…"
-            rows={3}
-          />
-        </Field>
-
-        <Field label="Características específicas" hint="Requerimientos funcionales del mueble.">
-          <TextArea
-            disabled={!puedeEditar}
-            value={form.caracteristicas}
-            onChange={(e) => setForm({ ...form, caracteristicas: e.target.value })}
-            placeholder="Ej. Cajones con cierre suave, iluminación LED interior, bisagras Blum…"
-            rows={3}
-          />
-        </Field>
-
         <Field label="Fecha tentativa de entrega">
           <TextInput
             disabled={!puedeEditar}
@@ -188,15 +152,15 @@ function NuevoProyecto() {
         </Field>
 
         <Field
-          label="Especificación inicial"
-          hint="Opcional. Puedes completarla luego desde el proyecto."
+          label="Especificaciones del proyecto"
+          hint="Opcional. Medidas, materiales, acabados, condiciones especiales y cualquier detalle técnico. Puedes completarlas luego desde el proyecto."
         >
           <TextArea
             disabled={!puedeEditar}
             value={form.especificacionInicial}
             onChange={(e) => setForm({ ...form, especificacionInicial: e.target.value })}
-            placeholder="Describe medidas, materiales, acabados u otros detalles técnicos…"
-            rows={4}
+            placeholder="Describe medidas, materiales, acabados, condiciones especiales y detalles técnicos…"
+            rows={6}
           />
         </Field>
 

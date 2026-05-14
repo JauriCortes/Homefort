@@ -1,3 +1,4 @@
+import { useState } from "react";
 import type { InputHTMLAttributes, SelectHTMLAttributes, TextareaHTMLAttributes, ReactNode } from "react";
 import { AREAS_LABEL, type Area } from "@/lib/store";
 
@@ -35,6 +36,43 @@ const baseInput =
 export function TextInput(props: InputHTMLAttributes<HTMLInputElement>) {
   const { className = "", ...rest } = props;
   return <input {...rest} className={`${baseInput} ${className}`} />;
+}
+
+export function NumericInput({
+  value,
+  onChange,
+  className = "",
+  placeholder,
+  ...props
+}: Omit<InputHTMLAttributes<HTMLInputElement>, "value" | "onChange" | "type"> & {
+  value: number;
+  onChange: (n: number) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [raw, setRaw] = useState("");
+  const formatted = value > 0 ? new Intl.NumberFormat("es-CO").format(value) : "";
+
+  return (
+    <input
+      {...props}
+      type="text"
+      inputMode="numeric"
+      placeholder={placeholder}
+      className={`${baseInput} ${className}`}
+      value={editing ? raw : formatted}
+      onFocus={(e) => {
+        setEditing(true);
+        setRaw(value > 0 ? value.toString() : "");
+        setTimeout(() => e.target.select(), 0);
+      }}
+      onBlur={() => {
+        setEditing(false);
+        const n = Number(raw.replace(/\D/g, ""));
+        onChange(isNaN(n) ? 0 : n);
+      }}
+      onChange={(e) => setRaw(e.target.value.replace(/\D/g, ""))}
+    />
+  );
 }
 
 export function TextArea(props: TextareaHTMLAttributes<HTMLTextAreaElement>) {

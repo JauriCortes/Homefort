@@ -21,9 +21,12 @@ import {
   useAgregarCotizacion,
   useAgregarCambio,
   useEliminarProyecto,
+  useItemsHistorico,
+  useMaterialesStock,
+  type ItemHistorico,
+  type MaterialStock,
 } from "@/hooks/api/use-comercial";
 import {
-  TRANSICIONES,
   formatCOP,
   type EstadoProyecto,
   type CotizacionItem,
@@ -40,7 +43,7 @@ import {
   ReadOnlyBanner,
   InfoBanner,
 } from "@/components/ui-bits";
-import { Field, TextInput, TextArea, Select, Button } from "@/components/form-bits";
+import { Field, TextInput, NumericInput, TextArea, Select, Button } from "@/components/form-bits";
 
 const searchSchema = z.object({
   tab: z.enum(["resumen", "especificaciones", "cotizaciones", "cambios"]).optional(),
@@ -75,16 +78,96 @@ function ProyectoDetalle() {
   return <ProyectoDetalleInner proyecto={proyecto} />;
 }
 
+type MilestoneAction = {
+  estado: EstadoProyecto;
+  label: string;
+  variant: "primary" | "secondary" | "danger";
+  question: string;
+};
+
+const MILESTONE_ACCIONES: Partial<Record<string, MilestoneAction[]>> = {
+  "En definición": [
+    {
+      estado: "En cotización",
+      label: "Pasar a cotización →",
+      variant: "secondary",
+      question: "¿Las especificaciones están listas para comenzar a cotizar?",
+    },
+  ],
+  "En cotización": [
+    {
+      estado: "Aprobada",
+      label: "Proyecto aprobado",
+      variant: "primary",
+      question:
+        "¿El cliente aprobó formalmente este proyecto? Se generará una solicitud de materiales para el área de Compras.",
+    },
+    {
+      estado: "Rechazada",
+      label: "Cancelar proyecto",
+      variant: "danger",
+      question: "¿Confirmar cancelación del proyecto? Esta acción es definitiva.",
+    },
+  ],
+  Aprobada: [
+    {
+      estado: "En producción",
+      label: "Iniciar producción →",
+      variant: "primary",
+      question: "¿Iniciar la fase de producción de este proyecto?",
+    },
+  ],
+  "En producción": [
+    {
+      estado: "Entregado",
+      label: "Marcar como entregado",
+      variant: "primary",
+      question: "¿El proyecto fue entregado satisfactoriamente al cliente?",
+    },
+  ],
+  Entregado: [
+    {
+      estado: "En garantía",
+      label: "Activar garantía",
+      variant: "secondary",
+      question: "¿Activar el período de garantía para este proyecto?",
+    },
+  ],
+  "En garantía": [
+    {
+      estado: "Entregado",
+      label: "Cerrar garantía",
+      variant: "secondary",
+      question: "¿El período de garantía ha concluido?",
+    },
+  ],
+};
+
 function ProyectoDetalleInner({ proyecto }: { proyecto: Proyecto }) {
   const search = Route.useSearch();
   const navigate = useNavigate();
   const { data: usuario } = useMe();
   const { data: cliente } = useCliente(proyecto.clienteId);
   const eliminarProyecto = useEliminarProyecto();
+  const actualizarEstado = useActualizarEstadoProyecto(proyecto.id);
   const puedeEditar = (usuario?.esAdmin || usuario?.areas.includes("comercial")) ?? false;
 
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [confirmMilestone, setConfirmMilestone] = useState<MilestoneAction | null>(null);
+  const [milestoneError, setMilestoneError] = useState<string | null>(null);
+
+  const handleMilestoneConfirm = () => {
+    if (!confirmMilestone) return;
+    setMilestoneError(null);
+    actualizarEstado.mutate(confirmMilestone.estado, {
+      onSuccess: () => setConfirmMilestone(null),
+      onError: () => {
+        setMilestoneError("No se pudo cambiar el estado. Intenta nuevamente.");
+        setConfirmMilestone(null);
+      },
+    });
+  };
 
   const tab = search.tab ?? "resumen";
   const setTab = (t: NonNullable<z.infer<typeof searchSchema>["tab"]>) =>
@@ -193,10 +276,35 @@ function ProyectoDetalleInner({ proyecto }: { proyecto: Proyecto }) {
         <span className="ml-auto flex items-center gap-2">
           <EstadoBadge estado={proyecto.estado} />
           {puedeEditar && (
-            <CambiarEstadoSelect proyectoId={proyecto.id} estadoActual={proyecto.estado} />
+            <MilestoneButtons estadoActual={proyecto.estado} onAction={setConfirmMilestone} />
           )}
         </span>
       </div>
+
+      {confirmMilestone && (
+        <div className="mb-4 rounded-lg border border-border bg-surface p-3">
+          <p className="mb-2 text-sm text-muted-foreground">{confirmMilestone.question}</p>
+          <div className="flex gap-2">
+            <Button
+              size="sm"
+              variant={confirmMilestone.variant}
+              disabled={actualizarEstado.isPending}
+              onClick={handleMilestoneConfirm}
+            >
+              {actualizarEstado.isPending ? "Actualizando…" : "Confirmar"}
+            </Button>
+            <Button
+              size="sm"
+              variant="secondary"
+              disabled={actualizarEstado.isPending}
+              onClick={() => setConfirmMilestone(null)}
+            >
+              Cancelar
+            </Button>
+          </div>
+        </div>
+      )}
+      {milestoneError && <ErrorBanner>{milestoneError}</ErrorBanner>}
 
       <div className="mb-4 flex flex-wrap gap-1 border-b border-border">
         <TabBtn active={tab === "resumen"} onClick={() => setTab("resumen")} icon={FileText}>
@@ -269,56 +377,23 @@ function TabBtn({
   );
 }
 
-function CambiarEstadoSelect({
-  proyectoId,
+function MilestoneButtons({
   estadoActual,
+  onAction,
 }: {
-  proyectoId: string;
   estadoActual: EstadoProyecto;
+  onAction: (action: MilestoneAction) => void;
 }) {
-  const actualizarEstado = useActualizarEstadoProyecto(proyectoId);
-  const [error, setError] = useState<string | null>(null);
-  const [ok, setOk] = useState<string | null>(null);
-  const opciones = TRANSICIONES[estadoActual] ?? [];
-
-  if (opciones.length === 0) {
-    return (
-      <div className="text-xs text-muted-foreground">El proyecto está en un estado final.</div>
-    );
-  }
+  const botones = MILESTONE_ACCIONES[estadoActual] ?? [];
+  if (!botones.length) return null;
 
   return (
-    <div>
-      <label className="text-xs text-muted-foreground">Cambiar a:</label>
-      <div className="mt-1 flex gap-1.5">
-        <Select
-          className="h-8 py-1 text-xs"
-          defaultValue=""
-          disabled={actualizarEstado.isPending}
-          onChange={(e) => {
-            const next = e.target.value as EstadoProyecto;
-            if (!next) return;
-            actualizarEstado.mutate(next, {
-              onSuccess: () => {
-                setOk(`Estado actualizado a "${next}".`);
-                setError(null);
-                setTimeout(() => setOk(null), 2500);
-                e.target.value = "";
-              },
-              onError: () => setError("No se pudo cambiar el estado."),
-            });
-          }}
-        >
-          <option value="">Selecciona…</option>
-          {opciones.map((o) => (
-            <option key={o} value={o}>
-              {o}
-            </option>
-          ))}
-        </Select>
-      </div>
-      {ok && <div className="mt-1 text-xs text-success">{ok}</div>}
-      {error && <div className="mt-1 text-xs text-destructive">{error}</div>}
+    <div className="flex flex-wrap items-center gap-1.5">
+      {botones.map((btn) => (
+        <Button key={btn.estado} size="sm" variant={btn.variant} onClick={() => onAction(btn)}>
+          {btn.label}
+        </Button>
+      ))}
     </div>
   );
 }
@@ -328,74 +403,40 @@ function CambiarEstadoSelect({
 function ResumenTab({ proyecto }: { proyecto: Proyecto }) {
   const especActual = proyecto.especificaciones[proyecto.especificaciones.length - 1];
   const ultimaCot = proyecto.cotizaciones[proyecto.cotizaciones.length - 1];
-  const hasDetails = proyecto.descripcionProyecto || proyecto.aspectos || proyecto.caracteristicas;
 
   return (
     <div className="space-y-4">
-      {hasDetails && (
-        <div className="rounded-lg border border-border bg-surface p-4">
-          <div className="grid gap-4 sm:grid-cols-2">
-            {proyecto.descripcionProyecto && (
-              <div className="sm:col-span-2">
-                <h4 className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  Descripción
-                </h4>
-                <p className="whitespace-pre-wrap text-sm">{proyecto.descripcionProyecto}</p>
-              </div>
-            )}
-            {proyecto.aspectos && (
-              <div>
-                <h4 className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  Aspectos
-                </h4>
-                <p className="whitespace-pre-wrap text-sm">{proyecto.aspectos}</p>
-              </div>
-            )}
-            {proyecto.caracteristicas && (
-              <div>
-                <h4 className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  Características específicas
-                </h4>
-                <p className="whitespace-pre-wrap text-sm">{proyecto.caracteristicas}</p>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
+      <div className="rounded-lg border border-border bg-surface p-4">
+        <h3 className="mb-2 flex items-center gap-2 text-sm font-semibold">
+          <ListChecks className="h-4 w-4" /> Especificaciones del proyecto
+        </h3>
+        {especActual?.contenido ? (
+          <p className="whitespace-pre-wrap text-sm">{especActual.contenido}</p>
+        ) : (
+          <p className="text-sm text-muted-foreground">Sin especificaciones aún.</p>
+        )}
+        {especActual && (
+          <p className="mt-2 text-xs text-muted-foreground">
+            v{especActual.version} · {especActual.actualizadoEn} · {especActual.actualizadoPor}
+          </p>
+        )}
+      </div>
 
-      <div className="grid gap-4 md:grid-cols-2">
-        <div className="rounded-lg border border-border bg-surface p-4">
-          <h3 className="mb-2 flex items-center gap-2 text-sm font-semibold">
-            <ListChecks className="h-4 w-4" /> Especificación actual
-          </h3>
-          {especActual?.contenido ? (
-            <p className="whitespace-pre-wrap text-sm">{especActual.contenido}</p>
-          ) : (
-            <p className="text-sm text-muted-foreground">Sin especificaciones aún.</p>
-          )}
-          {especActual && (
-            <p className="mt-2 text-xs text-muted-foreground">
-              v{especActual.version} · {especActual.actualizadoEn} · {especActual.actualizadoPor}
-            </p>
-          )}
-        </div>
-
-        <div className="rounded-lg border border-border bg-surface p-4">
-          <h3 className="mb-2 flex items-center gap-2 text-sm font-semibold">
-            <Receipt className="h-4 w-4" /> Última cotización
-          </h3>
-          {ultimaCot ? (
-            <div className="text-sm">
-              <div className="text-lg font-semibold tabular-nums">{formatCOP(ultimaCot.total)}</div>
-              <div className="text-xs text-muted-foreground">
-                {ultimaCot.fecha} · margen {ultimaCot.margenPct}%
-              </div>
-              <div className="mt-1 text-xs">{ultimaCot.condicionesPago}</div>
+      <div className="rounded-lg border border-border bg-surface p-4">
+        <h3 className="mb-2 flex items-center gap-2 text-sm font-semibold">
+          <Receipt className="h-4 w-4" /> Última cotización
+        </h3>
+        {ultimaCot ? (
+          <div className="text-sm">
+            <div className="text-lg font-semibold tabular-nums">{formatCOP(ultimaCot.total)}</div>
+            <div className="text-xs text-muted-foreground">
+              {ultimaCot.fecha} · margen {ultimaCot.margenPct}%
             </div>
-          ) : (
-            <p className="text-sm text-muted-foreground">Sin cotizaciones registradas.</p>
-          )}
-        </div>
+            <div className="mt-1 text-xs">{ultimaCot.condicionesPago}</div>
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground">Sin cotizaciones registradas.</p>
+        )}
       </div>
     </div>
   );
@@ -554,11 +595,71 @@ function EspecificacionesTab({
   );
 }
 
-/* ---------------- Cotizaciones ---------------- */
+/* ---------------- Helpers de cotizaciones ---------------- */
 
 function crearItemVacio(): CotizacionItem {
   return { descripcion: "", cantidad: 1, precioUnitario: 0, precioTotal: 0 };
 }
+
+function getStockWarning(
+  descripcion: string,
+  cantidad: number,
+  stocks: MaterialStock[],
+): string | null {
+  if (!descripcion.trim() || !stocks.length) return null;
+  const match = stocks.find(
+    (m) => m.nombre.toLowerCase() === descripcion.trim().toLowerCase(),
+  );
+  if (!match) return null;
+  if (match.stockDisponible < cantidad) {
+    return `Stock insuficiente: hay ${match.stockDisponible} ${match.unidad} disponibles, se necesitan ${cantidad}.`;
+  }
+  return null;
+}
+
+function SuggestionDropdown({
+  query,
+  items,
+  onSelect,
+}: {
+  query: string;
+  items: ItemHistorico[];
+  onSelect: (item: ItemHistorico) => void;
+}) {
+  const filtered = items.filter(
+    (s) => query.trim() && s.descripcion.toLowerCase().includes(query.trim().toLowerCase()),
+  );
+  if (!filtered.length) return null;
+  return (
+    <ul className="absolute left-0 top-full z-20 mt-0.5 max-h-40 w-full overflow-y-auto rounded-md border border-border bg-surface text-sm shadow-md">
+      {filtered.map((s) => (
+        <li
+          key={s.descripcion}
+          onMouseDown={() => onSelect(s)}
+          className="flex cursor-pointer items-center justify-between px-3 py-1.5 hover:bg-muted"
+        >
+          <span>{s.descripcion}</span>
+          <span className="ml-2 text-xs text-muted-foreground">{formatCOP(s.precioUnitario)}</span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function WarningBadge({ message }: { message: string }) {
+  return (
+    <div className="group absolute right-1 top-1/2 -translate-y-1/2">
+      <span className="flex h-4 w-4 cursor-help items-center justify-center rounded-full bg-warning text-[10px] font-bold text-warning-foreground">
+        !
+      </span>
+      <div className="absolute bottom-full right-0 z-30 mb-1 hidden w-56 rounded-md bg-foreground px-2 py-1.5 text-xs text-background shadow-md group-hover:block">
+        {message}
+      </div>
+    </div>
+  );
+}
+
+/* ---------------- Cotizaciones ---------------- */
 
 function CotizacionesTab({
   proyectoId,
@@ -569,8 +670,11 @@ function CotizacionesTab({
 }) {
   const { data: proyecto } = useProyecto(proyectoId);
   const { data: usuario } = useMe();
+  const { data: itemsHistorico = [] } = useItemsHistorico();
+  const { data: materialesStock = [] } = useMaterialesStock();
   const agregarCotizacion = useAgregarCotizacion(proyectoId);
   const [creating, setCreating] = useState(false);
+  const [openSuggest, setOpenSuggest] = useState<number | null>(null);
   const [form, setForm] = useState({
     margenPct: 25,
     condicionesPago: "50% anticipo, 50% contra entrega",
@@ -590,13 +694,18 @@ function CotizacionesTab({
 
   if (!proyecto) return null;
 
+  const ultimaCot = proyecto.cotizaciones[proyecto.cotizaciones.length - 1];
+  const historial = proyecto.cotizaciones.slice(0, -1);
+  const hayStockWarnEnForm = form.items.some(
+    (it) => it.descripcion.trim() && getStockWarning(it.descripcion, it.cantidad, materialesStock),
+  );
+
   const setItem = (i: number, patch: Partial<CotizacionItem>) => {
     setForm((f) => ({
       ...f,
       items: f.items.map((it, idx) => {
         if (idx !== i) return it;
         const updated = { ...it, ...patch };
-        // Auto-recalculate precioTotal unless it was directly set
         if ("cantidad" in patch || "precioUnitario" in patch) {
           updated.precioTotal = Math.round((updated.cantidad || 0) * (updated.precioUnitario || 0));
         }
@@ -644,91 +753,110 @@ function CotizacionesTab({
       {error && <ErrorBanner>{error}</ErrorBanner>}
       {ok && <SuccessBanner>{ok}</SuccessBanner>}
 
-      <div className="mb-3 flex items-center justify-between">
-        <h3 className="text-sm font-semibold">
-          Historial de cotizaciones ({proyecto.cotizaciones.length})
-        </h3>
-        {puedeEditar ? (
-          <Button size="sm" onClick={() => setCreating((v) => !v)}>
-            <Plus className="h-3.5 w-3.5" />
-            {creating ? "Cancelar" : "Nueva cotización"}
-          </Button>
-        ) : (
-          <button
-            disabled
-            className="inline-flex h-8 cursor-not-allowed items-center gap-1.5 rounded-md bg-muted px-3 text-xs font-medium text-muted-foreground"
-          >
-            <Plus className="h-3.5 w-3.5" /> Nueva cotización
-          </button>
-        )}
-      </div>
-
+      {/* ── Formulario nueva cotización ── */}
       {creating && (
         <form
           onSubmit={guardar}
-          className="mb-4 space-y-4 rounded-lg border border-border bg-surface p-4"
+          className="mb-6 space-y-4 rounded-lg border border-border bg-surface p-4"
         >
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-semibold">
+              Nueva cotización (v{proyecto.cotizaciones.length + 1})
+            </h3>
+            <Button variant="secondary" size="sm" type="button" onClick={() => setCreating(false)}>
+              Cancelar
+            </Button>
+          </div>
+
+          {hayStockWarnEnForm && (
+            <InfoBanner>
+              Uno o más ítems tienen stock insuficiente. La cotización se puede guardar, pero se
+              generará una advertencia visible para Compras.
+            </InfoBanner>
+          )}
+
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-muted-foreground">
                   <th className="pb-2 pr-2 font-medium">Ítem</th>
-                  <th className="w-24 pb-2 pr-2 font-medium">Cantidad</th>
-                  <th className="w-32 pb-2 pr-2 font-medium">Precio unitario</th>
-                  <th className="w-32 pb-2 pr-2 font-medium">Precio total</th>
+                  <th className="w-20 pb-2 pr-2 font-medium">Cant.</th>
+                  <th className="w-36 pb-2 pr-2 font-medium">P. unitario</th>
+                  <th className="w-36 pb-2 pr-2 font-medium">P. total</th>
                   <th className="w-8 pb-2"></th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border/50">
-                {form.items.map((it, i) => (
-                  <tr key={i}>
-                    <td className="py-1.5 pr-2">
-                      <TextInput
-                        value={it.descripcion}
-                        onChange={(e) => setItem(i, { descripcion: e.target.value })}
-                        placeholder="Descripción del ítem…"
-                      />
-                    </td>
-                    <td className="py-1.5 pr-2">
-                      <TextInput
-                        type="number"
-                        min={0}
-                        step="0.01"
-                        value={it.cantidad || ""}
-                        onChange={(e) => setItem(i, { cantidad: Number(e.target.value) })}
-                        placeholder="0"
-                      />
-                    </td>
-                    <td className="py-1.5 pr-2">
-                      <TextInput
-                        type="number"
-                        min={0}
-                        value={it.precioUnitario || ""}
-                        onChange={(e) => setItem(i, { precioUnitario: Number(e.target.value) })}
-                        placeholder="0"
-                      />
-                    </td>
-                    <td className="py-1.5 pr-2">
-                      <TextInput
-                        type="number"
-                        min={0}
-                        value={it.precioTotal || ""}
-                        onChange={(e) => setItem(i, { precioTotal: Number(e.target.value) })}
-                        placeholder="0"
-                      />
-                    </td>
-                    <td className="py-1.5">
-                      <button
-                        type="button"
-                        onClick={() => removeItem(i)}
-                        className="px-1 text-muted-foreground hover:text-destructive"
-                        title="Quitar ítem"
-                      >
-                        ✕
-                      </button>
-                    </td>
-                  </tr>
-                ))}
+                {form.items.map((it, i) => {
+                  const warn = getStockWarning(it.descripcion, it.cantidad, materialesStock);
+                  return (
+                    <tr key={i} className={warn ? "bg-warning/10" : ""}>
+                      <td className="py-1.5 pr-2">
+                        <div className="relative">
+                          <TextInput
+                            value={it.descripcion}
+                            onChange={(e) => {
+                              setItem(i, { descripcion: e.target.value });
+                              setOpenSuggest(i);
+                            }}
+                            onFocus={() => setOpenSuggest(i)}
+                            onBlur={() => setTimeout(() => setOpenSuggest(null), 150)}
+                            className={warn ? "border-warning bg-warning/10 pr-6" : ""}
+                            placeholder="Descripción del ítem…"
+                          />
+                          {openSuggest === i && (
+                            <SuggestionDropdown
+                              query={it.descripcion}
+                              items={itemsHistorico}
+                              onSelect={(s) => {
+                                setItem(i, {
+                                  descripcion: s.descripcion,
+                                  precioUnitario: s.precioUnitario,
+                                });
+                                setOpenSuggest(null);
+                              }}
+                            />
+                          )}
+                          {warn && <WarningBadge message={warn} />}
+                        </div>
+                      </td>
+                      <td className="py-1.5 pr-2">
+                        <TextInput
+                          type="number"
+                          min={0}
+                          step="0.01"
+                          value={it.cantidad || ""}
+                          onChange={(e) => setItem(i, { cantidad: Number(e.target.value) })}
+                          placeholder="0"
+                        />
+                      </td>
+                      <td className="py-1.5 pr-2">
+                        <NumericInput
+                          value={it.precioUnitario}
+                          onChange={(n) => setItem(i, { precioUnitario: n })}
+                          placeholder="0"
+                        />
+                      </td>
+                      <td className="py-1.5 pr-2">
+                        <NumericInput
+                          value={it.precioTotal}
+                          onChange={(n) => setItem(i, { precioTotal: n })}
+                          placeholder="0"
+                        />
+                      </td>
+                      <td className="py-1.5">
+                        <button
+                          type="button"
+                          onClick={() => removeItem(i)}
+                          className="px-1 text-muted-foreground hover:text-destructive"
+                          title="Quitar ítem"
+                        >
+                          ✕
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
             <button
@@ -780,62 +908,155 @@ function CotizacionesTab({
         </form>
       )}
 
-      {proyecto.cotizaciones.length === 0 ? (
-        <EmptyState
-          icon={Receipt}
-          title="Sin cotizaciones"
-          description="Crea la primera cotización del proyecto."
-        />
-      ) : (
-        <ul className="space-y-3">
-          {[...proyecto.cotizaciones].reverse().map((c, idx) => (
-            <li key={c.id} className="rounded-lg border border-border bg-surface">
+      {/* ── Cotización vigente ── */}
+      {!creating && (
+        <>
+          {!ultimaCot ? (
+            <EmptyState
+              icon={Receipt}
+              title="Sin cotizaciones"
+              description="Registra la primera cotización del proyecto."
+              action={
+                puedeEditar ? (
+                  <Button onClick={() => setCreating(true)}>
+                    <Plus className="h-4 w-4" /> Primera cotización
+                  </Button>
+                ) : undefined
+              }
+            />
+          ) : (
+            <div className="rounded-lg border border-border bg-surface">
               <header className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-4 py-3">
                 <div>
-                  <div className="text-sm font-semibold">
-                    Cotización #{proyecto.cotizaciones.length - idx} ·{" "}
-                    <span className="font-normal text-muted-foreground">{c.fecha}</span>
-                  </div>
-                  <div className="text-xs text-muted-foreground">Creada por {c.creadaPor}</div>
+                  <h3 className="text-sm font-semibold">
+                    Cotización vigente (v{proyecto.cotizaciones.length})
+                  </h3>
+                  <p className="text-xs text-muted-foreground">
+                    {ultimaCot.fecha} · por {ultimaCot.creadaPor}
+                  </p>
                 </div>
-                <div className="text-right">
-                  <div className="text-base font-semibold tabular-nums">{formatCOP(c.total)}</div>
-                  <div className="text-xs text-muted-foreground">margen {c.margenPct}%</div>
+                <div className="flex items-center gap-3">
+                  <div className="text-right">
+                    <div className="text-base font-semibold tabular-nums">
+                      {formatCOP(ultimaCot.total)}
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      margen {ultimaCot.margenPct}%
+                    </div>
+                  </div>
+                  {puedeEditar && (
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => setCreating(true)}
+                    >
+                      <Plus className="h-3.5 w-3.5" /> Nueva versión
+                    </Button>
+                  )}
                 </div>
               </header>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead className="text-left text-xs uppercase tracking-wide text-muted-foreground">
-                    <tr className="border-b border-border">
-                      <th className="px-4 py-2 font-medium">Ítem</th>
-                      <th className="px-4 py-2 font-medium tabular-nums">Cantidad</th>
-                      <th className="px-4 py-2 font-medium tabular-nums">Precio unitario</th>
-                      <th className="px-4 py-2 font-medium tabular-nums">Precio total</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border">
-                    {c.items.map((it, i) => (
-                      <tr key={i}>
-                        <td className="px-4 py-2">{it.descripcion}</td>
-                        <td className="px-4 py-2 tabular-nums">{it.cantidad ?? "—"}</td>
-                        <td className="px-4 py-2 tabular-nums">
-                          {it.precioUnitario != null ? formatCOP(it.precioUnitario) : "—"}
-                        </td>
-                        <td className="px-4 py-2 tabular-nums">
-                          {it.precioTotal != null ? formatCOP(it.precioTotal) : "—"}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              <CotizacionItemsTable items={ultimaCot.items} materialesStock={materialesStock} />
               <div className="border-t border-border bg-surface-2 px-4 py-2 text-xs text-muted-foreground">
-                Condiciones: {c.condicionesPago}
+                Condiciones de pago: {ultimaCot.condicionesPago}
               </div>
-            </li>
-          ))}
-        </ul>
+            </div>
+          )}
+
+          {/* ── Historial de versiones ── */}
+          {historial.length > 0 && (
+            <div className="mt-6 rounded-lg border border-border bg-surface">
+              <header className="border-b border-border px-4 py-3">
+                <h3 className="text-sm font-semibold">Historial de versiones</h3>
+              </header>
+              <ul className="divide-y divide-border">
+                {[...historial].reverse().map((c, idx) => {
+                  const vNum = historial.length - idx;
+                  return (
+                    <li key={c.id}>
+                      <details className="group">
+                        <summary className="flex cursor-pointer items-center justify-between px-4 py-3 hover:bg-muted">
+                          <div>
+                            <span className="text-sm font-medium">v{vNum}</span>
+                            <span className="ml-2 text-xs text-muted-foreground">
+                              {c.fecha} · {c.creadaPor}
+                            </span>
+                          </div>
+                          <span className="text-sm font-semibold tabular-nums">
+                            {formatCOP(c.total)}
+                          </span>
+                        </summary>
+                        <div className="border-t border-border/50">
+                          <CotizacionItemsTable
+                            items={c.items}
+                            materialesStock={materialesStock}
+                          />
+                          <div className="bg-surface-2 px-4 py-2 text-xs text-muted-foreground">
+                            Condiciones: {c.condicionesPago} · margen {c.margenPct}%
+                          </div>
+                        </div>
+                      </details>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          )}
+        </>
       )}
+    </div>
+  );
+}
+
+function CotizacionItemsTable({
+  items,
+  materialesStock,
+}: {
+  items: CotizacionItem[];
+  materialesStock: MaterialStock[];
+}) {
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-sm">
+        <thead className="text-left text-xs uppercase tracking-wide text-muted-foreground">
+          <tr className="border-b border-border">
+            <th className="px-4 py-2 font-medium">Ítem</th>
+            <th className="px-4 py-2 font-medium tabular-nums">Cantidad</th>
+            <th className="px-4 py-2 font-medium tabular-nums">P. unitario</th>
+            <th className="px-4 py-2 font-medium tabular-nums">P. total</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-border">
+          {items.map((it, i) => {
+            const warn = getStockWarning(it.descripcion, it.cantidad ?? 0, materialesStock);
+            return (
+              <tr key={i} className={warn ? "bg-warning/10" : ""}>
+                <td className="px-4 py-2">
+                  <div className="flex items-center gap-1.5">
+                    {it.descripcion}
+                    {warn && (
+                      <div className="group relative inline-flex">
+                        <span className="flex h-4 w-4 cursor-help items-center justify-center rounded-full bg-warning text-[10px] font-bold text-warning-foreground">
+                          !
+                        </span>
+                        <div className="absolute bottom-full left-0 z-30 mb-1 hidden w-56 rounded-md bg-foreground px-2 py-1.5 text-xs text-background shadow-md group-hover:block">
+                          {warn}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </td>
+                <td className="px-4 py-2 tabular-nums">{it.cantidad ?? "—"}</td>
+                <td className="px-4 py-2 tabular-nums">
+                  {it.precioUnitario != null ? formatCOP(it.precioUnitario) : "—"}
+                </td>
+                <td className="px-4 py-2 tabular-nums">
+                  {it.precioTotal != null ? formatCOP(it.precioTotal) : "—"}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
     </div>
   );
 }
