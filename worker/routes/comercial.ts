@@ -63,6 +63,13 @@ comercial.post("/clientes", requireAuth, requireArea("comercial"), async (c) => 
     return c.json({ error: "nombre, contacto y tipo son obligatorios" }, 400);
   }
   const db = drizzle(c.env.DB);
+  const [dupNombre] = await db
+    .select()
+    .from(clientes)
+    .where(eq(clientes.nombre, nombre.trim()))
+    .limit(1);
+  if (dupNombre) return c.json({ error: "Ya existe un cliente con ese nombre" }, 409);
+
   const [existing] = await db
     .select()
     .from(clientes)
@@ -107,6 +114,15 @@ comercial.patch("/clientes/:id", requireAuth, requireArea("comercial"), async (c
     .where(eq(clientes.id, c.req.param("id")))
     .limit(1);
   if (!cliente) return c.json({ error: "Cliente no encontrado" }, 404);
+
+  if (body.nombre && body.nombre.trim() !== cliente.nombre) {
+    const [dupNombre] = await db
+      .select()
+      .from(clientes)
+      .where(eq(clientes.nombre, body.nombre.trim()))
+      .limit(1);
+    if (dupNombre) return c.json({ error: "Ya existe otro cliente con ese nombre" }, 409);
+  }
 
   if (body.contacto && body.contacto.trim() !== cliente.contacto) {
     const [dup] = await db

@@ -70,7 +70,7 @@ function EditarClienteForm({ cliente }: { cliente: ClienteAPI }) {
         },
         onError: (err) => {
           if (err instanceof ApiError && err.status === 409) {
-            setError("Ya existe otro cliente con ese contacto.");
+            setError(err.message);
           } else {
             setError("No se pudo guardar los cambios. Intenta nuevamente.");
           }

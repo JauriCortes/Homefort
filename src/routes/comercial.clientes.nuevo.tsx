@@ -60,9 +60,7 @@ function NuevoCliente() {
         },
         onError: (err) => {
           if (err instanceof ApiError && err.status === 409) {
-            setError(
-              "Ya existe un cliente registrado con ese contacto. Verifica la lista de clientes antes de crear uno nuevo.",
-            );
+            setError(err.message);
           } else {
             setError("No se pudo registrar el cliente. Intenta nuevamente.");
           }
