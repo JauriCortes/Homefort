@@ -1,0 +1,873 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>HF HomeFort — Esquema de Datos</title>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+      background: #f8f7f4;
+      color: #1a1a2e;
+      padding: 40px 32px;
+    }
+
+    header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      margin-bottom: 36px;
+      padding-bottom: 24px;
+      border-bottom: 2px solid #e2e0db;
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .logo-icon {
+      width: 44px;
+      height: 44px;
+      background: #d97706;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-size: 22px;
+    }
+
+    .logo-text h1 {
+      font-size: 20px;
+      font-weight: 700;
+      color: #1a1a2e;
+    }
+
+    .logo-text p {
+      font-size: 12px;
+      color: #6b7280;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .meta {
+      text-align: right;
+      font-size: 12px;
+      color: #6b7280;
+      line-height: 1.8;
+    }
+
+    .meta strong {
+      color: #374151;
+    }
+
+    .section-title {
+      font-size: 13px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: #6b7280;
+      margin-bottom: 8px;
+    }
+
+    .intro {
+      background: white;
+      border: 1px solid #e2e0db;
+      border-radius: 10px;
+      padding: 20px 24px;
+      margin-bottom: 32px;
+      font-size: 14px;
+      color: #4b5563;
+      line-height: 1.7;
+    }
+
+    .legend {
+      display: flex;
+      gap: 24px;
+      flex-wrap: wrap;
+      margin-bottom: 32px;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      color: #374151;
+    }
+
+    .legend-dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 3px;
+    }
+
+    .domains {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+      margin-bottom: 36px;
+    }
+
+    .domain-badge {
+      padding: 8px 14px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      text-align: center;
+    }
+
+    .d-comercial   { background: #dbeafe; color: #1e40af; }
+    .d-compras     { background: #dcfce7; color: #166534; }
+    .d-admin       { background: #fef9c3; color: #854d0e; }
+    .d-produccion  { background: #fce7f3; color: #9d174d; }
+    .d-postventa   { background: #ede9fe; color: #5b21b6; }
+    .d-auth        { background: #f1f5f9; color: #334155; }
+
+    .diagram-wrapper {
+      background: white;
+      border: 1px solid #e2e0db;
+      border-radius: 12px;
+      padding: 32px;
+      margin-bottom: 36px;
+      overflow-x: auto;
+    }
+
+    .diagram-wrapper .mermaid {
+      display: flex;
+      justify-content: center;
+    }
+
+    .tables-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 16px;
+      margin-bottom: 36px;
+    }
+
+    .table-card {
+      background: white;
+      border: 1px solid #e2e0db;
+      border-radius: 10px;
+      overflow: hidden;
+    }
+
+    .table-card-header {
+      padding: 10px 14px;
+      font-size: 13px;
+      font-weight: 700;
+      color: white;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .table-card-header .tag {
+      font-size: 10px;
+      font-weight: 500;
+      background: rgba(255,255,255,0.25);
+      padding: 1px 6px;
+      border-radius: 4px;
+    }
+
+    .hdr-comercial  { background: #2563eb; }
+    .hdr-compras    { background: #16a34a; }
+    .hdr-admin      { background: #d97706; }
+    .hdr-produccion { background: #db2777; }
+    .hdr-postventa  { background: #7c3aed; }
+    .hdr-auth       { background: #475569; }
+
+    .table-card-body {
+      padding: 10px 0;
+    }
+
+    .field-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 3px 14px;
+      font-size: 12px;
+    }
+
+    .field-name {
+      font-family: ui-monospace, "Cascadia Code", monospace;
+      color: #1f2937;
+      flex: 1;
+    }
+
+    .field-type {
+      font-size: 10px;
+      color: #9ca3af;
+      font-family: ui-monospace, monospace;
+    }
+
+    .badge-pk {
+      font-size: 9px;
+      font-weight: 700;
+      background: #fef3c7;
+      color: #92400e;
+      padding: 1px 5px;
+      border-radius: 3px;
+    }
+
+    .badge-fk {
+      font-size: 9px;
+      font-weight: 700;
+      background: #e0e7ff;
+      color: #3730a3;
+      padding: 1px 5px;
+      border-radius: 3px;
+    }
+
+    .badge-json {
+      font-size: 9px;
+      font-weight: 700;
+      background: #fce7f3;
+      color: #9d174d;
+      padding: 1px 5px;
+      border-radius: 3px;
+    }
+
+    .field-divider {
+      height: 1px;
+      background: #f3f4f6;
+      margin: 4px 0;
+    }
+
+    .relations-section {
+      background: white;
+      border: 1px solid #e2e0db;
+      border-radius: 10px;
+      padding: 20px 24px;
+      margin-bottom: 36px;
+    }
+
+    .relations-section h3 {
+      font-size: 14px;
+      font-weight: 600;
+      margin-bottom: 14px;
+      color: #374151;
+    }
+
+    .rel-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+
+    .rel-table th {
+      text-align: left;
+      padding: 6px 12px;
+      background: #f9fafb;
+      color: #6b7280;
+      font-weight: 600;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      border-bottom: 1px solid #e5e7eb;
+    }
+
+    .rel-table td {
+      padding: 7px 12px;
+      border-bottom: 1px solid #f3f4f6;
+      color: #374151;
+      font-family: ui-monospace, monospace;
+      font-size: 12px;
+    }
+
+    .rel-table tr:last-child td { border-bottom: none; }
+
+    .rel-symbol {
+      color: #6b7280;
+      font-family: sans-serif;
+      font-size: 13px;
+    }
+
+    footer {
+      text-align: center;
+      font-size: 12px;
+      color: #9ca3af;
+      padding-top: 24px;
+      border-top: 1px solid #e2e0db;
+    }
+
+    @media print {
+      body { background: white; padding: 20px; }
+      .diagram-wrapper { page-break-inside: avoid; }
+      .tables-grid { page-break-before: always; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-icon">🔨</div>
+    <div class="logo-text">
+      <h1>HF HomeFort</h1>
+      <p>Sistema de Gestión Interna</p>
+    </div>
+  </div>
+  <div class="meta">
+    <strong>Esquema de Datos — v1.0</strong><br>
+    Diagrama Entidad-Relación Simplificado<br>
+    Mayo 2026
+  </div>
+</header>
+
+<div class="intro">
+  Este documento describe el modelo de datos mínimo necesario para alimentar todas las pantallas del prototipo.
+  El sistema gestiona el ciclo completo de proyectos de carpintería: desde la solicitud comercial hasta la garantía postventa.
+  La base de datos es <strong>Cloudflare D1</strong> (SQLite edge) con <strong>20 tablas</strong> organizadas en 6 dominios de negocio.
+</div>
+
+<p class="section-title">Dominios</p>
+<div class="domains">
+  <div class="domain-badge d-auth">🔐 Autenticación</div>
+  <div class="domain-badge d-comercial">💼 Comercial</div>
+  <div class="domain-badge d-compras">📦 Compras</div>
+  <div class="domain-badge d-admin">📊 Administrativa</div>
+  <div class="domain-badge d-produccion">🔧 Producción</div>
+  <div class="domain-badge d-postventa">🛡️ Postventa</div>
+</div>
+
+<p class="section-title">Diagrama ER</p>
+<div class="diagram-wrapper">
+  <div class="mermaid">
+erDiagram
+    USUARIOS {
+        text id PK
+        text nombre
+        text email
+        text areas "JSON"
+        bool es_admin
+        bool activo
+    }
+
+    CLIENTES {
+        text id PK
+        text nombre
+        text tipo "B2B|B2C"
+        text empresa
+        text contacto
+    }
+
+    PROYECTOS {
+        text id PK
+        text codigo
+        text cliente_id FK
+        text tipo
+        text estado
+        text ultima_actualizacion
+    }
+
+    ESPECIFICACIONES {
+        text id PK
+        text proyecto_id FK
+        int version
+        text medidas
+        text materiales
+        text acabados
+    }
+
+    COTIZACIONES {
+        text id PK
+        text proyecto_id FK
+        real total
+        real margen_pct
+        text items "JSON"
+        text condiciones_pago
+    }
+
+    CAMBIOS_PROYECTO {
+        text id PK
+        text proyecto_id FK
+        text descripcion
+        real impacto_costo
+        int impacto_dias
+    }
+
+    MATERIALES_BASE {
+        text id PK
+        text nombre
+        text categoria
+        text unidad
+        real costo_unitario
+    }
+
+    PROVEEDORES {
+        text id PK
+        text nombre
+        text email
+        text condiciones_pago
+        text materiales_ids "JSON"
+    }
+
+    MOVIMIENTOS_INVENTARIO {
+        text id PK
+        text material_id FK
+        text tipo "entrada|bloqueo|consumo|ajuste"
+        real cantidad
+        text proyecto_id FK
+        text proveedor_id FK
+    }
+
+    SOLICITUDES_COMPRA {
+        text id PK
+        text proyecto_id FK
+        text estado "pendiente|en-gestion|atendida"
+        text items "JSON"
+        bool generada_automaticamente
+    }
+
+    ORDENES_COMPRA {
+        text id PK
+        text codigo
+        text proyecto_id FK
+        text proveedor_id FK
+        text solicitud_id FK
+        text estado "borrador|enviada|recibida"
+    }
+
+    ORDENES_PRODUCCION {
+        text id PK
+        text numero
+        text proyecto_id FK
+        text cotizacion_id FK
+        text estado "Emitida|En produccion|Finalizada"
+    }
+
+    FACTURAS {
+        text id PK
+        text numero
+        text proyecto_id FK
+        text cliente_id FK
+        real monto
+        text estado "Pendiente|Pagada|Anulada"
+    }
+
+    PAGOS {
+        text id PK
+        text factura_id FK
+        real monto
+        text tipo "Transferencia|Efectivo|Cheque"
+    }
+
+    RECURSOS_TRANSPORTE {
+        text id PK
+        text proyecto_id FK
+        text estado "Programada|En transito|Entregada"
+        text responsable
+    }
+
+    AJUSTES_COSTO {
+        text id PK
+        text proyecto_id FK
+        text concepto
+        real monto
+    }
+
+    ETAPAS_PRODUCCION {
+        text id PK
+        text orden_id FK
+        text nombre
+        text estado "pendiente|en_curso|completada"
+        text materiales "JSON"
+        text observaciones "JSON"
+    }
+
+    ENTREGAS_PRODUCCION {
+        text id PK
+        text orden_id FK
+        text checklist "JSON"
+        text responsable
+    }
+
+    SOLICITUDES_GARANTIA {
+        text id PK
+        text proyecto_id FK
+        text descripcion
+        text estado "abierta|en_proceso|cerrada"
+    }
+
+    ORDENES_GARANTIA {
+        text id PK
+        text solicitud_id FK
+        text proyecto_id FK
+        text estado "activa|completada"
+        text etapas "JSON"
+        text costos "JSON"
+    }
+
+    CLIENTES           ||--o{ PROYECTOS            : "tiene"
+    PROYECTOS          ||--o{ ESPECIFICACIONES      : "versiona"
+    PROYECTOS          ||--o{ COTIZACIONES          : "cotiza"
+    PROYECTOS          ||--o{ CAMBIOS_PROYECTO      : "registra"
+    PROYECTOS          ||--o{ SOLICITUDES_COMPRA    : "genera"
+    PROYECTOS          ||--o{ ORDENES_COMPRA        : "asocia"
+    PROYECTOS          ||--o{ ORDENES_PRODUCCION    : "produce"
+    PROYECTOS          ||--o{ FACTURAS              : "factura"
+    PROYECTOS          ||--o{ RECURSOS_TRANSPORTE   : "despacha"
+    PROYECTOS          ||--o{ AJUSTES_COSTO         : "ajusta"
+    PROYECTOS          ||--o{ SOLICITUDES_GARANTIA  : "garantiza"
+    COTIZACIONES       ||--o{ ORDENES_PRODUCCION    : "origina"
+    CLIENTES           ||--o{ FACTURAS              : "recibe"
+    FACTURAS           ||--o{ PAGOS                 : "abona"
+    PROVEEDORES        ||--o{ ORDENES_COMPRA        : "abastece"
+    SOLICITUDES_COMPRA ||--o| ORDENES_COMPRA        : "convierte"
+    MATERIALES_BASE    ||--o{ MOVIMIENTOS_INVENTARIO: "mueve"
+    ORDENES_PRODUCCION ||--o{ ETAPAS_PRODUCCION     : "divide"
+    ORDENES_PRODUCCION ||--o| ENTREGAS_PRODUCCION   : "entrega"
+    SOLICITUDES_GARANTIA ||--o| ORDENES_GARANTIA    : "activa"
+  </div>
+</div>
+
+<p class="section-title">Detalle de tablas por dominio</p>
+<div class="tables-grid">
+
+  <!-- AUTH -->
+  <div class="table-card">
+    <div class="table-card-header hdr-auth">usuarios <span class="tag">Auth</span></div>
+    <div class="table-card-body">
+      <div class="field-row"><span class="field-name">id</span><span class="badge-pk">PK</span><span class="field-type">text</span></div>
+      <div class="field-row"><span class="field-name">nombre</span><span class="field-type">text</span></div>
+      <div class="field-row"><span class="field-name">email</span><span class="field-type">text unique</span></div>
+      <div class="field-row"><span class="field-name">password_hash</span><span class="field-type">text</span></div>
+      <div class="field-row"><span class="field-name">areas</span><span class="badge-json">JSON</span><span class="field-type">Area[]</span></div>
+      <div class="field-row"><span class="field-name">es_admin</span><span class="field-type">boolean</span></div>
+      <div class="field-row"><span class="field-name">activo</span><span class="field-type">boolean</span></div>
+      <div class="field-row"><span class="field-name">intentos_fallidos</span><span class="field-type">integer</span></div>
+      <div class="field-row"><span class="field-name">bloqueado_hasta</span><span class="field-type">text?</span></div>
+      <div class="field-row"><span class="field-name">creado_en</span><span class="field-type">text ISO</span></div>
+    </div>
+  </div>
+
+  <!-- CLIENTES -->
+  <div class="table-card">
+    <div class="table-card-header hdr-comercial">clientes <span class="tag">Comercial</span></div>
+    <div class="table-card-body">
+      <div class="field-row"><span class="field-name">id</span><span class="badge-pk">PK</span><span class="field-type">text</span></div>
+      <div class="field-row"><span class="field-name">nombre</span><span class="field-type">text</span></div>
+      <div class="field-row"><span class="field-name">contacto</span><span class="field-type">text unique</span></div>
+      <div class="field-row"><span class="field-name">tipo</span><span class="field-type">B2B | B2C</span></div>
+      <div class="field-row"><span class="field-name">empresa</span><span class="field-type">text?</span></div>
+      <div class="field-row"><span class="field-name">creado_en</span><span class="field-type">text ISO</span></div>
+    </div>
+  </div>
+
+  <!-- PROYECTOS -->
+  <div class="table-card">
+    <div class="table-card-header hdr-comercial">proyectos <span class="tag">Comercial</span></div>
+    <div class="table-card-body">
+      <div class="field-row"><span class="field-name">id</span><span class="badge-pk">PK</span><span class="field-type">text</span></div>
+      <div class="field-row"><span class="field-name">codigo</span><span class="field-type">text unique</span></div>
+      <div class="field-row"><span class="field-name">cliente_id</span><span class="badge-fk">FK</span><span class="field-type">clientes</span></div>
+      <div class="field-row"><span class="field-name">tipo</span><span class="field-type">TipoProyecto</span></div>
+      <div class="field-row"><span class="field-name">fecha_solicitud</span><span class="field-type">text ISO</span></div>
+      <div class="field-divider"></div>
+      <div class="field-row"><span class="field-name">estado</span><span class="field-type">EstadoProyecto</span></div>
+      <div class="field-row"><span class="field-name">ultima_actualizacion</span><span class="field-type">text ISO</span></div>
+    </div>
+  </div>
+
+  <!-- ESPECIFICACIONES -->
+  <div class="table-card">
+    <div class="table-card-header hdr-comercial">especificaciones <span class="tag">Comercial</span></div>
+    <div class="table-card-body">
+      <div class="field-row"><span class="field-name">id</span><span class="badge-pk">PK</span><span class="field-type">text</span></div>
+      <div class="field-row"><span class="field-name">proyecto_id</span><span class="badge-fk">FK</span><span class="field-type">proyectos</span></div>
+      <div class="field-row"><span class="field-name">version</span><span class="field-type">integer</span></div>
+      <div class="field-row"><span class="field-name">medidas</span><span class="field-type">text</span></div>
+      <div class="field-row"><span class="field-name">materiales</span><span class="field-type">text</span></div>
+      <div class="field-row"><span class="field-name">acabados</span><span class="field-type">text</span></div>
+      <div class="field-row"><span class="field-name">observaciones</span><span class="field-type">text</span></div>
+      <div class="field-row"><span class="field-name">actualizado_en</span><span class="field-type">text ISO</span></div>
+      <div class="field-row"><span class="field-name">actualizado_por</span><span class="field-type">text</span></div>
+    </div>
+  </div>
+
+  <!-- COTIZACIONES -->
+  <div class="table-card">
+    <div class="table-card-header hdr-comercial">cotizaciones <span class="tag">Comercial</span></div>
+    <div class="table-card-body">
+      <div class="field-row"><span class="field-name">id</span><span class="badge-pk">PK</span><span class="field-type">text</span></div>
+      <div class="field-row"><span class="field-name">proyecto_id</span><span class="badge-fk">FK</span><span class="field-type">proyectos</span></div>
+      <div class="field-row"><span class="field-name">fecha</span><span class="field-type">text ISO</span></div>
+      <div class="field-row"><span class="field-name">descripcion</span><span class="field-type">text</span></div>
+      <div class="field-row"><span class="field-name">items</span><span class="badge-json">JSON</span><span class="field-type">CotizacionItem[]</span></div>
+      <div class="field-row"><span class="field-name">margen_pct</span><span class="field-type">real</span></div>
+      <div class="field-row"><span class="field-name">condiciones_pago</span><span class="field-type">text</span></div>
+      <div class="field-row"><span class="field-name">total</span><span class="field-type">real</span></div>
+      <div class="field-row"><span class="field-name">creada_por</span><span class="field-type">text</span></div>
+    </div>
+  </div>
+
+  <!-- MATERIALES_BASE -->
+  <div class="table-card">
+    <div class="table-card-header hdr-compras">materiales_base <span class="tag">Compras</span></div>
+    <div class="table-card-body">
+      <div class="field-row"><span class="field-name">id</span><span class="badge-pk">PK</span><span class="field-type">text</span></div>
+      <div class="field-row"><span class="field-name">nombre</span><span class="field-type">text</span></div>
+      <div class="field-row"><span class="field-name">categoria</span><span class="field-type">text</span></div>
+      <div class="field-row"><span class="field-name">unidad</span><span class="field-type">text</span></div>
+      <div class="field-row"><span class="field-name">costo_unitario</span><span class="field-type">real</span></div>
+      <div class="field-row"><span class="field-name">actualizado_en</span><span class="field-type">text ISO</span></div>
+    </div>
+  </div>
+
+  <!-- PROVEEDORES -->
+  <div class="table-card">
+    <div class="table-card-header hdr-compras">proveedores <span class="tag">Compras</span></div>
+    <div class="table-card-body">
+      <div class="field-row"><span class="field-name">id</span><span class="badge-pk">PK</span><span class="field-type">text</span></div>
+      <div class="field-row"><span class="field-name">nombre</span><span class="field-type">text</span></div>
+      <div class="field-row"><span class="field-name">contacto</span><span class="field-type">text</span></div>
+      <div class="field-row"><span class="field-name">telefono</span><span class="field-type">text</span></div>
+      <div class="field-row"><span class="field-name">email</span><span class="field-type">text</span></div>
+      <div class="field-row"><span class="field-name">materiales_ids</span><span class="badge-json">JSON</span><span class="field-type">string[]</span></div>
+      <div class="field-row"><span class="field-name">condiciones_pago</span><span class="field-type">text</span></div>
+    </div>
+  </div>
+
+  <!-- MOVIMIENTOS INVENTARIO -->
+  <div class="table-card">
+    <div class="table-card-header hdr-compras">movimientos_inventario <span class="tag">Compras</span></div>
+    <div class="table-card-body">
+      <div class="field-row"><span class="field-name">id</span><span class="badge-pk">PK</span><span class="field-type">text</span></div>
+      <div class="field-row"><span class="field-name">material_id</span><span class="badge-fk">FK</span><span class="field-type">materiales_base</span></div>
+      <div class="field-row"><span class="field-name">tipo</span><span class="field-type">entrada|bloqueo|consumo|ajuste</span></div>
+      <div class="field-row"><span class="field-name">cantidad</span><span class="field-type">real</span></div>
+      <div class="field-row"><span class="field-name">fecha</span><span class="field-type">text ISO</span></div>
+      <div class="field-row"><span class="field-name">proveedor_id</span><span class="badge-fk">FK</span><span class="field-type">proveedores?</span></div>
+      <div class="field-row"><span class="field-name">proyecto_id</span><span class="badge-fk">FK</span><span class="field-type">proyectos?</span></div>
+      <div class="field-row"><span class="field-name">responsable</span><span class="field-type">text</span></div>
+    </div>
+  </div>
+
+  <!-- SOLICITUDES COMPRA -->
+  <div class="table-card">
+    <div class="table-card-header hdr-compras">solicitudes_compra <span class="tag">Compras</span></div>
+    <div class="table-card-body">
+      <div class="field-row"><span class="field-name">id</span><span class="badge-pk">PK</span><span class="field-type">text</span></div>
+      <div class="field-row"><span class="field-name">proyecto_id</span><span class="badge-fk">FK</span><span class="field-type">proyectos</span></div>
+      <div class="field-row"><span class="field-name">fecha_creacion</span><span class="field-type">text ISO</span></div>
+      <div class="field-row"><span class="field-name">estado</span><span class="field-type">pendiente|en-gestion|atendida</span></div>
+      <div class="field-row"><span class="field-name">items</span><span class="badge-json">JSON</span><span class="field-type">SolicitudItem[]</span></div>
+      <div class="field-row"><span class="field-name">orden_compra_id</span><span class="field-type">text?</span></div>
+      <div class="field-row"><span class="field-name">generada_automaticamente</span><span class="field-type">boolean</span></div>
+    </div>
+  </div>
+
+  <!-- ORDENES COMPRA -->
+  <div class="table-card">
+    <div class="table-card-header hdr-compras">ordenes_compra <span class="tag">Compras</span></div>
+    <div class="table-card-body">
+      <div class="field-row"><span class="field-name">id</span><span class="badge-pk">PK</span><span class="field-type">text</span></div>
+      <div class="field-row"><span class="field-name">codigo</span><span class="field-type">text unique</span></div>
+      <div class="field-row"><span class="field-name">proyecto_id</span><span class="badge-fk">FK</span><span class="field-type">proyectos</span></div>
+      <div class="field-row"><span class="field-name">proveedor_id</span><span class="badge-fk">FK</span><span class="field-type">proveedores</span></div>
+      <div class="field-row"><span class="field-name">solicitud_id</span><span class="badge-fk">FK</span><span class="field-type">solicitudes_compra?</span></div>
+      <div class="field-row"><span class="field-name">fecha_entrega_estimada</span><span class="field-type">text ISO</span></div>
+      <div class="field-row"><span class="field-name">estado</span><span class="field-type">borrador|enviada|recibida</span></div>
+      <div class="field-row"><span class="field-name">items</span><span class="badge-json">JSON</span><span class="field-type">OrdenItem[]</span></div>
+    </div>
+  </div>
+
+  <!-- ORDENES PRODUCCION -->
+  <div class="table-card">
+    <div class="table-card-header hdr-admin">ordenes_produccion <span class="tag">Administrativa</span></div>
+    <div class="table-card-body">
+      <div class="field-row"><span class="field-name">id</span><span class="badge-pk">PK</span><span class="field-type">text</span></div>
+      <div class="field-row"><span class="field-name">numero</span><span class="field-type">text unique</span></div>
+      <div class="field-row"><span class="field-name">proyecto_id</span><span class="badge-fk">FK</span><span class="field-type">proyectos</span></div>
+      <div class="field-row"><span class="field-name">cotizacion_id</span><span class="badge-fk">FK</span><span class="field-type">cotizaciones</span></div>
+      <div class="field-row"><span class="field-name">fecha_emision</span><span class="field-type">text ISO</span></div>
+      <div class="field-row"><span class="field-name">estado</span><span class="field-type">Emitida|En producción|Finalizada</span></div>
+      <div class="field-row"><span class="field-name">responsable</span><span class="field-type">text</span></div>
+    </div>
+  </div>
+
+  <!-- FACTURAS -->
+  <div class="table-card">
+    <div class="table-card-header hdr-admin">facturas <span class="tag">Administrativa</span></div>
+    <div class="table-card-body">
+      <div class="field-row"><span class="field-name">id</span><span class="badge-pk">PK</span><span class="field-type">text</span></div>
+      <div class="field-row"><span class="field-name">numero</span><span class="field-type">text unique</span></div>
+      <div class="field-row"><span class="field-name">proyecto_id</span><span class="badge-fk">FK</span><span class="field-type">proyectos</span></div>
+      <div class="field-row"><span class="field-name">cotizacion_id</span><span class="badge-fk">FK</span><span class="field-type">cotizaciones</span></div>
+      <div class="field-row"><span class="field-name">cliente_id</span><span class="badge-fk">FK</span><span class="field-type">clientes</span></div>
+      <div class="field-row"><span class="field-name">fecha_emision</span><span class="field-type">text ISO</span></div>
+      <div class="field-row"><span class="field-name">fecha_vencimiento</span><span class="field-type">text ISO</span></div>
+      <div class="field-row"><span class="field-name">monto</span><span class="field-type">real</span></div>
+      <div class="field-row"><span class="field-name">estado</span><span class="field-type">Pendiente|Pagada|Anulada</span></div>
+    </div>
+  </div>
+
+  <!-- PAGOS -->
+  <div class="table-card">
+    <div class="table-card-header hdr-admin">pagos <span class="tag">Administrativa</span></div>
+    <div class="table-card-body">
+      <div class="field-row"><span class="field-name">id</span><span class="badge-pk">PK</span><span class="field-type">text</span></div>
+      <div class="field-row"><span class="field-name">factura_id</span><span class="badge-fk">FK</span><span class="field-type">facturas</span></div>
+      <div class="field-row"><span class="field-name">proyecto_id</span><span class="badge-fk">FK</span><span class="field-type">proyectos</span></div>
+      <div class="field-row"><span class="field-name">fecha</span><span class="field-type">text ISO</span></div>
+      <div class="field-row"><span class="field-name">monto</span><span class="field-type">real</span></div>
+      <div class="field-row"><span class="field-name">tipo</span><span class="field-type">Transferencia|Efectivo|Cheque|Tarjeta</span></div>
+      <div class="field-row"><span class="field-name">referencia</span><span class="field-type">text?</span></div>
+    </div>
+  </div>
+
+  <!-- RECURSOS TRANSPORTE -->
+  <div class="table-card">
+    <div class="table-card-header hdr-admin">recursos_transporte <span class="tag">Administrativa</span></div>
+    <div class="table-card-body">
+      <div class="field-row"><span class="field-name">id</span><span class="badge-pk">PK</span><span class="field-type">text</span></div>
+      <div class="field-row"><span class="field-name">proyecto_id</span><span class="badge-fk">FK</span><span class="field-type">proyectos</span></div>
+      <div class="field-row"><span class="field-name">fecha_programada</span><span class="field-type">text ISO</span></div>
+      <div class="field-row"><span class="field-name">responsable</span><span class="field-type">text</span></div>
+      <div class="field-row"><span class="field-name">vehiculo</span><span class="field-type">text</span></div>
+      <div class="field-row"><span class="field-name">direccion_destino</span><span class="field-type">text</span></div>
+      <div class="field-row"><span class="field-name">estado</span><span class="field-type">Programada|En tránsito|Entregada</span></div>
+    </div>
+  </div>
+
+  <!-- AJUSTES COSTO -->
+  <div class="table-card">
+    <div class="table-card-header hdr-admin">ajustes_costo <span class="tag">Administrativa</span></div>
+    <div class="table-card-body">
+      <div class="field-row"><span class="field-name">id</span><span class="badge-pk">PK</span><span class="field-type">text</span></div>
+      <div class="field-row"><span class="field-name">proyecto_id</span><span class="badge-fk">FK</span><span class="field-type">proyectos</span></div>
+      <div class="field-row"><span class="field-name">fecha</span><span class="field-type">text ISO</span></div>
+      <div class="field-row"><span class="field-name">concepto</span><span class="field-type">text</span></div>
+      <div class="field-row"><span class="field-name">monto</span><span class="field-type">real</span></div>
+      <div class="field-row"><span class="field-name">registrado_por</span><span class="field-type">text</span></div>
+    </div>
+  </div>
+
+  <!-- ETAPAS PRODUCCION -->
+  <div class="table-card">
+    <div class="table-card-header hdr-produccion">etapas_produccion <span class="tag">Producción</span></div>
+    <div class="table-card-body">
+      <div class="field-row"><span class="field-name">id</span><span class="badge-pk">PK</span><span class="field-type">text</span></div>
+      <div class="field-row"><span class="field-name">orden_id</span><span class="badge-fk">FK</span><span class="field-type">ordenes_produccion</span></div>
+      <div class="field-row"><span class="field-name">proyecto_id</span><span class="badge-fk">FK</span><span class="field-type">proyectos</span></div>
+      <div class="field-row"><span class="field-name">nombre</span><span class="field-type">text</span></div>
+      <div class="field-row"><span class="field-name">responsable</span><span class="field-type">text</span></div>
+      <div class="field-row"><span class="field-name">fecha_estimada</span><span class="field-type">text ISO</span></div>
+      <div class="field-row"><span class="field-name">estado</span><span class="field-type">pendiente|en_curso|completada</span></div>
+      <div class="field-row"><span class="field-name">materiales</span><span class="badge-json">JSON</span><span class="field-type">MaterialEtapa[]</span></div>
+      <div class="field-row"><span class="field-name">observaciones</span><span class="badge-json">JSON</span><span class="field-type">Observacion[]</span></div>
+    </div>
+  </div>
+
+  <!-- ENTREGAS PRODUCCION -->
+  <div class="table-card">
+    <div class="table-card-header hdr-produccion">entregas_produccion <span class="tag">Producción</span></div>
+    <div class="table-card-body">
+      <div class="field-row"><span class="field-name">id</span><span class="badge-pk">PK</span><span class="field-type">text</span></div>
+      <div class="field-row"><span class="field-name">orden_id</span><span class="badge-fk">FK</span><span class="field-type">ordenes_produccion</span></div>
+      <div class="field-row"><span class="field-name">proyecto_id</span><span class="badge-fk">FK</span><span class="field-type">proyectos</span></div>
+      <div class="field-row"><span class="field-name">fecha</span><span class="field-type">text ISO</span></div>
+      <div class="field-row"><span class="field-name">responsable</span><span class="field-type">text</span></div>
+      <div class="field-row"><span class="field-name">checklist</span><span class="badge-json">JSON</span><span class="field-type">ChecklistEntrega</span></div>
+      <div class="field-row"><span class="field-name">observaciones</span><span class="field-type">text?</span></div>
+    </div>
+  </div>
+
+  <!-- SOLICITUDES GARANTIA -->
+  <div class="table-card">
+    <div class="table-card-header hdr-postventa">solicitudes_garantia <span class="tag">Postventa</span></div>
+    <div class="table-card-body">
+      <div class="field-row"><span class="field-name">id</span><span class="badge-pk">PK</span><span class="field-type">text</span></div>
+      <div class="field-row"><span class="field-name">proyecto_id</span><span class="badge-fk">FK</span><span class="field-type">proyectos</span></div>
+      <div class="field-row"><span class="field-name">fecha</span><span class="field-type">text ISO</span></div>
+      <div class="field-row"><span class="field-name">descripcion</span><span class="field-type">text</span></div>
+      <div class="field-row"><span class="field-name">abierto_by</span><span class="field-type">text</span></div>
+      <div class="field-row"><span class="field-name">estado</span><span class="field-type">abierta|en_proceso|cerrada</span></div>
+      <div class="field-row"><span class="field-name">orden_garantia_id</span><span class="field-type">text?</span></div>
+    </div>
+  </div>
+
+  <!-- ORDENES GARANTIA -->
+  <div class="table-card">
+    <div class="table-card-header hdr-postventa">ordenes_garantia <span class="tag">Postventa</span></div>
+    <div class="table-card-body">
+      <div class="field-row"><span class="field-name">id</span><span class="badge-pk">PK</span><span class="field-type">text</span></div>
+      <div class="field-row"><span class="field-name">numero</span><span class="field-type">text unique</span></div>
+      <div class="field-row"><span class="field-name">proyecto_id</span><span class="badge-fk">FK</span><span class="field-type">proyectos</span></div>
+      <div class="field-row"><span class="field-name">solicitud_id</span><span class="badge-fk">FK</span><span class="field-type">solicitudes_garantia</span></div>
+      <div class="field-row"><span class="field-name">fecha_creacion</span><span class="field-type">text ISO</span></div>
+      <div class="field-row"><span class="field-name">estado</span><span class="field-type">activa|completada</span></div>
+      <div class="field-row"><span class="field-name">etapas</span><span class="badge-json">JSON</span><span class="field-type">EtapaGarantia[]</span></div>
+      <div class="field-row"><span class="field-name">costos</span><span class="badge-json">JSON</span><span class="field-type">{concepto,monto}[]</span></div>
+    </div>
+  </div>
+
+</div>
+
+<div class="relations-section">
+  <h3>Relaciones principales</h3>
+  <table class="rel-table">
+    <thead>
+      <tr>
+        <th>Tabla padre</th>
+        <th>Cardinalidad</th>
+        <th>Tabla hija</th>
+        <th>Campo FK</th>
+        <th>Descripción</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr><td>clientes</td><td class="rel-symbol">1 → N</td><td>proyectos</td><td>cliente_id</td><td>Un cliente puede tener múltiples proyectos</td></tr>
+      <tr><td>proyectos</td><td class="rel-symbol">1 → N</td><td>especificaciones</td><td>proyecto_id</td><td>Versiones de especificación por proyecto</td></tr>
+      <tr><td>proyectos</td><td class="rel-symbol">1 → N</td><td>cotizaciones</td><td>proyecto_id</td><td>Cotizaciones por proyecto (cascade delete)</td></tr>
+      <tr><td>proyectos</td><td class="rel-symbol">1 → N</td><td>cambios_proyecto</td><td>proyecto_id</td><td>Historial de cambios con impacto costo/días</td></tr>
+      <tr><td>proyectos</td><td class="rel-symbol">1 → N</td><td>solicitudes_compra</td><td>proyecto_id</td><td>Auto-generada al aprobar proyecto</td></tr>
+      <tr><td>proyectos</td><td class="rel-symbol">1 → N</td><td>ordenes_compra</td><td>proyecto_id</td><td>Órdenes de compra de materiales</td></tr>
+      <tr><td>cotizaciones</td><td class="rel-symbol">1 → N</td><td>ordenes_produccion</td><td>cotizacion_id</td><td>Una cotización aprobada origina una OP</td></tr>
+      <tr><td>proyectos</td><td class="rel-symbol">1 → N</td><td>facturas</td><td>proyecto_id</td><td>Facturación por proyecto</td></tr>
+      <tr><td>clientes</td><td class="rel-symbol">1 → N</td><td>facturas</td><td>cliente_id</td><td>Facturas asociadas al cliente</td></tr>
+      <tr><td>facturas</td><td class="rel-symbol">1 → N</td><td>pagos</td><td>factura_id</td><td>Abonos parciales o totales (cascade delete)</td></tr>
+      <tr><td>proveedores</td><td class="rel-symbol">1 → N</td><td>ordenes_compra</td><td>proveedor_id</td><td>Proveedor que abastece la orden</td></tr>
+      <tr><td>solicitudes_compra</td><td class="rel-symbol">1 → 0..1</td><td>ordenes_compra</td><td>solicitud_id</td><td>Solicitud convertida en orden</td></tr>
+      <tr><td>materiales_base</td><td class="rel-symbol">1 → N</td><td>movimientos_inventario</td><td>material_id</td><td>Entradas, bloqueos, consumos y ajustes</td></tr>
+      <tr><td>ordenes_produccion</td><td class="rel-symbol">1 → N</td><td>etapas_produccion</td><td>orden_id</td><td>Etapas de trabajo de la OP (cascade delete)</td></tr>
+      <tr><td>ordenes_produccion</td><td class="rel-symbol">1 → 0..1</td><td>entregas_produccion</td><td>orden_id</td><td>Checklist de entrega final</td></tr>
+      <tr><td>proyectos</td><td class="rel-symbol">1 → N</td><td>solicitudes_garantia</td><td>proyecto_id</td><td>Garantías post-entrega</td></tr>
+      <tr><td>solicitudes_garantia</td><td class="rel-symbol">1 → 0..1</td><td>ordenes_garantia</td><td>solicitud_id</td><td>Orden de trabajo de garantía</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<footer>
+  HF HomeFort — Esquema de Datos v1.0 · Cloudflare D1 (SQLite) · Generado Mayo 2026
+</footer>
+
+<script>
+  mermaid.initialize({
+    startOnLoad: true,
+    theme: 'default',
+    er: {
+      diagramPadding: 30,
+      layoutDirection: 'TB',
+      minEntityWidth: 100,
+      minEntityHeight: 75,
+      entityPadding: 15,
+      useMaxWidth: true,
+    },
+    themeVariables: {
+      primaryColor: '#dbeafe',
+      primaryTextColor: '#1e3a8a',
+      primaryBorderColor: '#93c5fd',
+      lineColor: '#6b7280',
+      fontSize: '13px',
+    }
+  });
+</script>
+</body>
+</html>

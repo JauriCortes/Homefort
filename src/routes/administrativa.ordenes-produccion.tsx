@@ -40,8 +40,8 @@ function OrdenesProduccionPage() {
   return (
     <div>
       <PageHeader
-        title="Ordenes de produccion"
-        crumbs={[{ label: "Administrativa" }, { label: "Ordenes produccion" }]}
+        title="Órdenes de producción"
+        crumbs={[{ label: "Administrativa" }, { label: "Órdenes de producción" }]}
         actions={puedeEditar && proyectosAprobados.length > 0 ? <Button onClick={() => setShowForm((v) => !v)}><Plus className="h-4 w-4" /> {showForm ? "Cancelar" : "Nueva orden"}</Button> : undefined}
       />
       {ok && <SuccessBanner>{ok}</SuccessBanner>}

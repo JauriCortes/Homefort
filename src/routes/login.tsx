@@ -1,8 +1,8 @@
 import { createFileRoute, useNavigate, Navigate } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Hammer, Eye, EyeOff } from "lucide-react";
-import { store } from "@/lib/store";
-import { useSesion } from "@/hooks/use-store";
+import { useMe, useLogin } from "@/hooks/api/use-auth";
+import { ApiError } from "@/lib/api-client";
 import { Button, Field, TextInput } from "@/components/form-bits";
 import { ErrorBanner, InfoBanner } from "@/components/ui-bits";
 
@@ -11,39 +11,33 @@ export const Route = createFileRoute("/login")({
 });
 
 function LoginPage() {
-  const sesion = useSesion();
+  const { data: sesion } = useMe();
   const navigate = useNavigate();
+  const login = useLogin();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPwd, setShowPwd] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [enviando, setEnviando] = useState(false);
 
-  useEffect(() => {
-    if (sesion) navigate({ to: "/comercial" });
-  }, [sesion, navigate]);
-
-  if (sesion) return <Navigate to="/comercial" replace />;
+  if (sesion) return <Navigate to="/seguimiento" replace />;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-    setEnviando(true);
-    const r = store.login(email, password);
-    setEnviando(false);
-    if (r.ok) {
-      navigate({ to: "/comercial" });
-      return;
-    }
-    if (r.motivo === "bloqueado") {
-      setError(
-        `Cuenta bloqueada temporalmente. Intenta de nuevo en ${r.minutosRestantes ?? 15} minutos.`,
-      );
-    } else if (r.motivo === "inactivo") {
-      setError("Esta cuenta está desactivada. Contacta al administrador.");
-    } else {
-      setError("Correo o contraseña incorrectos.");
-    }
+    login.mutate(
+      { email, password },
+      {
+        onSuccess: () => navigate({ to: "/seguimiento" }),
+        onError: (err) => {
+          if (err instanceof ApiError && err.status === 403) {
+            const min = (err as ApiError & { minutosRestantes?: number }).minutosRestantes ?? 15;
+            setError(`Cuenta bloqueada temporalmente. Intenta de nuevo en ${min} minutos.`);
+          } else {
+            setError("Correo o contraseña incorrectos.");
+          }
+        },
+      },
+    );
   };
 
   return (
@@ -97,23 +91,25 @@ function LoginPage() {
               </div>
             </Field>
 
-            <Button type="submit" disabled={enviando} className="mt-2 w-full">
-              {enviando ? "Verificando…" : "Iniciar sesión"}
+            <Button type="submit" disabled={login.isPending} className="mt-2 w-full">
+              {login.isPending ? "Verificando…" : "Iniciar sesión"}
             </Button>
           </div>
         </form>
 
-        <div className="mt-4">
-          <InfoBanner>
-            <div className="space-y-1 text-xs">
-              <div className="font-medium">Usuarios de demostración:</div>
-              <div>· laura@homefort.co / comercial123</div>
-              <div>· carlos@homefort.co / compras123</div>
-              <div>· maria@homefort.co / produccion123</div>
-              <div>· andres@homefort.co / admin123 (Admin)</div>
-            </div>
-          </InfoBanner>
-        </div>
+        {import.meta.env.DEV && (
+          <div className="mt-4">
+            <InfoBanner>
+              <div className="space-y-1 text-xs">
+                <div className="font-medium">Usuarios de demostración:</div>
+                <div>· laura@homefort.co / comercial123</div>
+                <div>· carlos@homefort.co / compras123</div>
+                <div>· maria@homefort.co / produccion123</div>
+                <div>· andres@homefort.co / admin123 (Admin)</div>
+              </div>
+            </InfoBanner>
+          </div>
+        )}
 
         <p className="mt-4 text-center text-[11px] text-muted-foreground">
           Tras 5 intentos fallidos la cuenta se bloquea 15 minutos. La sesión expira tras 30

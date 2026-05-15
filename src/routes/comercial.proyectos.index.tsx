@@ -1,13 +1,9 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { Plus, Search, FolderKanban, Eye } from "lucide-react";
-import { useStore, useUsuarioActivo } from "@/hooks/use-store";
-import {
-  PageHeader,
-  EmptyState,
-  EstadoBadge,
-  TipoClienteBadge,
-} from "@/components/ui-bits";
+import { useMe } from "@/hooks/api/use-auth";
+import { useProyectos, useClientes } from "@/hooks/api/use-comercial";
+import { PageHeader, EmptyState, EstadoBadge, TipoClienteBadge } from "@/components/ui-bits";
 import { TextInput, Select } from "@/components/form-bits";
 
 export const Route = createFileRoute("/comercial/proyectos/")({
@@ -15,17 +11,17 @@ export const Route = createFileRoute("/comercial/proyectos/")({
 });
 
 function ProyectosList() {
-  const usuario = useUsuarioActivo();
-  const proyectos = useStore((s) => s.proyectos);
-  const clientes = useStore((s) => s.clientes);
-  const puedeEditar = usuario.esAdmin || usuario.areas.includes("comercial");
+  const { data: usuario } = useMe();
+  const { data: proyectos = [] } = useProyectos();
+  const { data: clientes = [] } = useClientes();
+  const puedeEditar = (usuario?.esAdmin || usuario?.areas.includes("comercial")) ?? false;
 
   const [q, setQ] = useState("");
   const [estado, setEstado] = useState("");
 
   const lista = proyectos.filter((p) => {
     const cliente = clientes.find((c) => c.id === p.clienteId);
-    const text = `${p.codigo} ${p.tipo} ${cliente?.nombre ?? ""}`.toLowerCase();
+    const text = `${p.codigo} ${p.titulo || p.tipo} ${cliente?.nombre ?? ""}`.toLowerCase();
     return text.includes(q.toLowerCase()) && (estado ? p.estado === estado : true);
   });
 
@@ -118,7 +114,7 @@ function ProyectosList() {
                         {cli && <TipoClienteBadge tipo={cli.tipo} />}
                       </div>
                     </td>
-                    <td className="px-4 py-2.5">{p.tipo}</td>
+                    <td className="px-4 py-2.5">{p.titulo || p.tipo}</td>
                     <td className="px-4 py-2.5 text-muted-foreground">{p.fechaSolicitud}</td>
                     <td className="px-4 py-2.5">
                       <EstadoBadge estado={p.estado} />
@@ -150,9 +146,9 @@ function ProyectosList() {
                   >
                     <div className="flex items-center justify-between gap-2">
                       <div className="min-w-0">
-                        <div className="truncate text-sm font-medium">{p.codigo}</div>
+                        <div className="truncate text-sm font-medium">{p.titulo || p.codigo}</div>
                         <div className="truncate text-xs text-muted-foreground">
-                          {cli?.nombre ?? "—"} · {p.tipo}
+                          {cli?.nombre ?? "—"} · {p.titulo || p.tipo}
                         </div>
                       </div>
                       <EstadoBadge estado={p.estado} />

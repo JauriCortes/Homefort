@@ -1,0 +1,20 @@
+{
+  "version": "7",
+  "dialect": "sqlite",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "6",
+      "when": 1778646607299,
+      "tag": "0000_complex_angel",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1747263600000,
+      "tag": "0001_add_proyecto_fields",
+      "breakpoints": true
+    }
+  ]
+}

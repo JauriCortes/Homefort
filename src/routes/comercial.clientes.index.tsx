@@ -1,7 +1,8 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { Users, Plus, Search, Eye } from "lucide-react";
-import { useStore, useUsuarioActivo } from "@/hooks/use-store";
+import { useMe } from "@/hooks/api/use-auth";
+import { useClientes, useProyectos } from "@/hooks/api/use-comercial";
 import { PageHeader, EmptyState, TipoClienteBadge } from "@/components/ui-bits";
 import { TextInput, Select } from "@/components/form-bits";
 
@@ -10,10 +11,10 @@ export const Route = createFileRoute("/comercial/clientes/")({
 });
 
 function ClientesList() {
-  const usuario = useUsuarioActivo();
-  const clientes = useStore((s) => s.clientes);
-  const proyectos = useStore((s) => s.proyectos);
-  const puedeEditar = usuario.esAdmin || usuario.areas.includes("comercial");
+  const { data: usuario } = useMe();
+  const { data: clientes = [] } = useClientes();
+  const { data: proyectos = [] } = useProyectos();
+  const puedeEditar = (usuario?.esAdmin || usuario?.areas.includes("comercial")) ?? false;
 
   const [q, setQ] = useState("");
   const [tipo, setTipo] = useState<string>("");
@@ -89,7 +90,6 @@ function ClientesList() {
         />
       ) : (
         <div className="overflow-hidden rounded-lg border border-border bg-surface">
-          {/* Tabla en escritorio */}
           <table className="hidden w-full text-sm md:table">
             <thead className="bg-surface-2 text-left text-xs uppercase tracking-wide text-muted-foreground">
               <tr>
@@ -133,7 +133,6 @@ function ClientesList() {
             </tbody>
           </table>
 
-          {/* Lista en móvil */}
           <ul className="divide-y divide-border md:hidden">
             {filtrados.map((c) => {
               const n = proyectos.filter((p) => p.clienteId === c.id).length;
@@ -147,9 +146,7 @@ function ClientesList() {
                     <div className="flex items-center justify-between gap-2">
                       <div className="min-w-0">
                         <div className="truncate text-sm font-medium">{c.nombre}</div>
-                        <div className="truncate text-xs text-muted-foreground">
-                          {c.contacto}
-                        </div>
+                        <div className="truncate text-xs text-muted-foreground">{c.contacto}</div>
                       </div>
                       <TipoClienteBadge tipo={c.tipo} />
                     </div>

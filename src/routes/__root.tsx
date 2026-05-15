@@ -1,7 +1,5 @@
-import { Link, createRootRoute, HeadContent, Scripts } from "@tanstack/react-router";
+import { Link, createRootRoute } from "@tanstack/react-router";
 import { AppLayout } from "@/components/app-layout";
-
-import appCss from "../styles.css?url";
 
 function NotFoundComponent() {
   return (
@@ -26,39 +24,6 @@ function NotFoundComponent() {
 }
 
 export const Route = createRootRoute({
-  head: () => ({
-    meta: [
-      { charSet: "utf-8" },
-      { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "HF HomeFort — Gestión interna" },
-      {
-        name: "description",
-        content:
-          "Sistema de gestión operativa de HF HomeFort para carpintería y mobiliario a medida.",
-      },
-    ],
-    links: [{ rel: "stylesheet", href: appCss }],
-  }),
-  shellComponent: RootShell,
-  component: RootComponent,
+  component: AppLayout,
   notFoundComponent: NotFoundComponent,
 });
-
-function RootShell({ children }: { children: React.ReactNode }) {
-  return (
-    <html lang="es">
-      <head>
-        <HeadContent />
-      </head>
-      <body>
-        {children}
-        <Scripts />
-      </body>
-    </html>
-  );
-}
-
-function RootComponent() {
-  // AppLayout renders <Outlet /> internally
-  return <AppLayout />;
-}

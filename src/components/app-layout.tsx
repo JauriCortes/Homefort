@@ -23,8 +23,8 @@ import {
   ListFilter,
   Store,
 } from "lucide-react";
-import { useSesion } from "@/hooks/use-store";
-import { store, AREAS_LABEL } from "@/lib/store";
+import { useMe, useLogout } from "@/hooks/api/use-auth";
+import { AREAS_LABEL } from "@/lib/store";
 
 interface NavItem {
   to: string;
@@ -58,13 +58,13 @@ const NAV_SECTIONS: SectionDef[] = [
       { to: "/compras/proveedores", label: "Proveedores", icon: Store },
       { to: "/compras/inventario", label: "Inventario", icon: Package },
       { to: "/compras/solicitudes", label: "Solicitudes", icon: ClipboardList },
-      { to: "/compras/ordenes", label: "Ordenes de compra", icon: ShoppingCart },
+      { to: "/compras/ordenes", label: "Órdenes de compra", icon: ShoppingCart },
     ],
   },
   {
     label: "Administrativa",
     items: [
-      { to: "/administrativa/ordenes-produccion", label: "Ordenes produccion", icon: Briefcase },
+      { to: "/administrativa/ordenes-produccion", label: "Órdenes de producción", icon: Briefcase },
       { to: "/administrativa/facturas", label: "Facturas", icon: FileText },
       { to: "/administrativa/pagos", label: "Pagos", icon: DollarSign },
       { to: "/administrativa/transporte", label: "Transporte", icon: Truck },
@@ -72,7 +72,7 @@ const NAV_SECTIONS: SectionDef[] = [
     ],
   },
   {
-    label: "Produccion",
+    label: "Producción",
     items: [
       { to: "/produccion/ordenes", label: "Ordenes", icon: Settings },
     ],
@@ -86,15 +86,14 @@ const NAV_SECTIONS: SectionDef[] = [
 ];
 
 function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
-  const usuario = useSesion();
+  const { data: usuario } = useMe();
+  const logout = useLogout();
   const location = useLocation();
-  const navigate = useNavigate();
   if (!usuario) return null;
 
   const handleLogout = () => {
-    store.logout();
     onNavigate?.();
-    navigate({ to: "/login" });
+    logout.mutate();
   };
 
   const isActive = (to: string) => {
@@ -111,7 +110,7 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
         <div className="leading-tight">
           <div className="text-sm font-semibold text-sidebar-foreground">HF HomeFort</div>
           <div className="text-[11px] uppercase tracking-wide text-sidebar-foreground/60">
-            Gestion interna
+            Gestión interna
           </div>
         </div>
       </div>
@@ -148,7 +147,7 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
         {usuario.esAdmin && (
           <div className="mb-2 mt-4 border-t border-sidebar-border pt-3">
             <div className="flex items-center gap-2 px-2 py-1.5 text-[11px] uppercase tracking-wide text-sidebar-foreground/60">
-              <Shield className="h-3.5 w-3.5" /> Administracion
+              <Shield className="h-3.5 w-3.5" /> Administración
             </div>
             <ul className="space-y-0.5">
               <li>
@@ -182,7 +181,7 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
           onClick={handleLogout}
           className="flex w-full items-center justify-center gap-2 rounded-md border border-sidebar-border px-3 py-2 text-sm text-sidebar-foreground hover:bg-sidebar-accent"
         >
-          <LogOut className="h-4 w-4" /> Cerrar sesion
+          <LogOut className="h-4 w-4" /> Cerrar sesión
         </button>
       </div>
     </div>
@@ -191,19 +190,15 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
 
 export function AppLayout() {
   const [mobileOpen, setMobileOpen] = useState(false);
-  const usuario = useSesion();
+  const { data: usuario, isLoading } = useMe();
   const navigate = useNavigate();
   const location = useLocation();
 
   useEffect(() => {
-    if (!usuario && location.pathname !== "/login") {
+    if (!isLoading && !usuario && location.pathname !== "/login") {
       navigate({ to: "/login" });
     }
-  }, [usuario, location.pathname, navigate]);
-
-  useEffect(() => {
-    store.registrarActividad();
-  }, [location.pathname]);
+  }, [usuario, isLoading, location.pathname, navigate]);
 
   if (location.pathname === "/login") {
     return <Outlet />;
@@ -254,9 +249,8 @@ export function AppLayout() {
             <Menu className="h-5 w-5" />
           </button>
           <div className="min-w-0 flex-1">
-            <div className="truncate text-sm font-medium">HF HomeFort</div>
-            <div className="truncate text-xs text-muted-foreground">
-              Sistema de gestion operativa
+            <div className="truncate text-sm font-medium text-muted-foreground">
+              {location.pathname.split("/").filter(Boolean).map((s) => s.charAt(0).toUpperCase() + s.slice(1)).join(" / ") || "Inicio"}
             </div>
           </div>
           <div className="hidden items-center gap-3 sm:flex">
