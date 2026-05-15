@@ -15,6 +15,13 @@
       "when": 1747263600000,
       "tag": "0001_add_proyecto_fields",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1747436400000,
+      "tag": "0002_optional_proyecto_orden_compra",
+      "breakpoints": true
     }
   ]
 }

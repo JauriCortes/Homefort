@@ -185,9 +185,7 @@ export const ordenesCompra = sqliteTable(
   {
     id: text("id").primaryKey(),
     codigo: text("codigo").notNull(),
-    proyectoId: text("proyecto_id")
-      .notNull()
-      .references(() => proyectos.id),
+    proyectoId: text("proyecto_id").references(() => proyectos.id),
     proveedorId: text("proveedor_id")
       .notNull()
       .references(() => proveedores.id),

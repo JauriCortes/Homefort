@@ -197,7 +197,6 @@ compras.get("/ordenes", requireAuth, async (c) => {
 
 compras.post("/ordenes", requireAuth, requireArea("compras"), async (c) => {
   const body = await c.req.json();
-  if (!body.proyectoId) return c.json({ error: "proyectoId requerido" }, 400);
   if (!body.proveedorId) return c.json({ error: "proveedorId requerido" }, 400);
   if (!body.fechaEntregaEstimada) return c.json({ error: "fechaEntregaEstimada requerida" }, 400);
   const db = drizzle(c.env.DB);
@@ -208,7 +207,7 @@ compras.post("/ordenes", requireAuth, requireArea("compras"), async (c) => {
   const oc = {
     id: nuevoId("oc"),
     codigo,
-    proyectoId: body.proyectoId,
+    proyectoId: body.proyectoId ?? null,
     proveedorId: body.proveedorId,
     solicitudId: body.solicitudId ?? null,
     fechaCreacion: new Date().toISOString().slice(0, 10),

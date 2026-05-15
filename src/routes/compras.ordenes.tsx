@@ -56,12 +56,11 @@ function OrdenesCompraPage() {
   const guardar = (e: React.FormEvent) => {
     e.preventDefault();
     const errs: Record<string, string> = {};
-    if (!form.proyectoId) errs.proyectoId = "Selecciona un proyecto.";
     if (!form.proveedorId) errs.proveedorId = "Selecciona un proveedor.";
     if (!form.fechaEntregaEstimada) errs.fechaEntregaEstimada = "Ingresa la fecha estimada.";
     if (Object.keys(errs).length) return setFieldErrors(errs);
     crearOrden.mutate(
-      { proyectoId: form.proyectoId, proveedorId: form.proveedorId, fechaEntregaEstimada: form.fechaEntregaEstimada, notas: form.notas || null, solicitudId: null, items: [] },
+      { proyectoId: form.proyectoId || null, proveedorId: form.proveedorId, fechaEntregaEstimada: form.fechaEntregaEstimada, notas: form.notas || null, solicitudId: null, items: [] },
       {
         onSuccess: () => {
           setOk("Orden de compra creada.");
@@ -125,7 +124,7 @@ function OrdenesCompraPage() {
       {showForm && (
         <form onSubmit={guardar} className="mb-4 space-y-4 rounded-lg border border-border bg-surface p-4">
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Proyecto" required error={fieldErrors.proyectoId}>
+            <Field label="Proyecto" error={fieldErrors.proyectoId}>
               <Select value={form.proyectoId} onChange={(e) => setForm({ ...form, proyectoId: e.target.value })}>
                 <option value="">Selecciona...</option>
                 {proyectos.map((p) => <option key={p.id} value={p.id}>{(p as { codigo?: string }).codigo} — {p.titulo}</option>)}
@@ -176,7 +175,7 @@ function OrdenesCompraPage() {
                 return (
                   <tr key={o.id} className="border-t border-border">
                     <td className="px-3 py-2 font-medium">{o.codigo}</td>
-                    <td className="px-3 py-2 text-muted-foreground">{proy?.codigo ?? o.proyectoId}</td>
+                    <td className="px-3 py-2 text-muted-foreground">{proy?.codigo ?? (o.proyectoId ? o.proyectoId : "—")}</td>
                     <td className="px-3 py-2 text-muted-foreground">{prov?.nombre ?? o.proveedorId}</td>
                     <td className="px-3 py-2 text-muted-foreground">{o.fechaEntregaEstimada}</td>
                     <td className="px-3 py-2">

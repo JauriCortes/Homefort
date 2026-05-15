@@ -53,7 +53,7 @@ export interface SolicitudCompra {
 export interface OrdenCompra {
   id: string;
   codigo: string;
-  proyectoId: string;
+  proyectoId: string | null;
   proveedorId: string;
   solicitudId: string | null;
   fechaCreacion: string;
