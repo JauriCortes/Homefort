@@ -103,8 +103,31 @@ compras.patch("/proveedores/:id", requireAuth, requireArea("compras"), async (c)
 
 compras.delete("/proveedores/:id", requireAuth, requireArea("compras"), async (c) => {
   const db = drizzle(c.env.DB);
-  await db.delete(proveedores).where(eq(proveedores.id, c.req.param("id")));
-  return c.json({ ok: true });
+  const id = c.req.param("id");
+  try {
+    // Bloquear si tiene órdenes de compra asociadas (FK NOT NULL)
+    const [ordenRef] = await db
+      .select({ id: ordenesCompra.id })
+      .from(ordenesCompra)
+      .where(eq(ordenesCompra.proveedorId, id))
+      .limit(1);
+    if (ordenRef) {
+      return c.json(
+        { error: "Este proveedor tiene órdenes de compra asociadas. Reasígnalas antes de eliminarlo." },
+        409,
+      );
+    }
+    // Nullificar referencia opcional en movimientos
+    await db
+      .update(movimientosInventario)
+      .set({ proveedorId: null })
+      .where(eq(movimientosInventario.proveedorId, id));
+    await db.delete(proveedores).where(eq(proveedores.id, id));
+    return c.json({ ok: true });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Error al eliminar proveedor";
+    return c.json({ error: msg }, 500);
+  }
 });
 
 // ── Movimientos de inventario ─────────────────────────────────────────────────
