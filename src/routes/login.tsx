@@ -19,7 +19,7 @@ function LoginPage() {
   const [showPwd, setShowPwd] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  if (sesion) return <Navigate to="/seguimiento" replace />;
+  if (sesion) return <Navigate to="/comercial" replace />;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -27,7 +27,7 @@ function LoginPage() {
     login.mutate(
       { email, password },
       {
-        onSuccess: () => navigate({ to: "/seguimiento" }),
+        onSuccess: () => navigate({ to: "/comercial" }),
         onError: (err) => {
           if (err instanceof ApiError && err.status === 403) {
             const min = (err as ApiError & { minutosRestantes?: number }).minutosRestantes ?? 15;
