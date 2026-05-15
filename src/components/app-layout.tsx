@@ -56,9 +56,9 @@ const NAV_SECTIONS: SectionDef[] = [
     label: "Compras",
     items: [
       { to: "/compras/proveedores", label: "Proveedores", icon: Store },
-      { to: "/compras/inventario", label: "Inventario", icon: Package },
       { to: "/compras/solicitudes", label: "Solicitudes", icon: ClipboardList },
       { to: "/compras/ordenes", label: "Órdenes de compra", icon: ShoppingCart },
+      { to: "/compras/inventario", label: "Inventario", icon: Package },
     ],
   },
   {
