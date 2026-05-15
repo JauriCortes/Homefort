@@ -63,7 +63,7 @@ function NuevoProveedor() {
       />
       <form
         onSubmit={handleSubmit}
-        className="max-w-2xl space-y-4 rounded-lg border border-border bg-surface p-5"
+        className="space-y-4 rounded-lg border border-border bg-surface p-5"
       >
         {error && <ErrorBanner>{error}</ErrorBanner>}
         <Field label="Nombre" required>

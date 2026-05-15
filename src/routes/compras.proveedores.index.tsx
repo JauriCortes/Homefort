@@ -1,6 +1,8 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
+import { createPortal } from "react-dom";
 import { Plus, Pencil, Trash2 } from "lucide-react";
+import { toast } from "sonner";
 import { useMe } from "@/hooks/api/use-auth";
 import {
   useProveedores,
@@ -25,33 +27,36 @@ function ProveedoresList() {
 
   const [editando, setEditando] = useState<Proveedor | null>(null);
   const [editForm, setEditForm] = useState<Partial<Proveedor>>({});
-  const [error, setError] = useState<string | null>(null);
+  const [editError, setEditError] = useState<string | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<Proveedor | null>(null);
 
   const puedeEditar = (usuario?.esAdmin || usuario?.areas.includes("compras")) ?? false;
 
   const abrirEdit = (p: Proveedor) => {
     setEditando(p);
     setEditForm({ ...p });
-    setError(null);
+    setEditError(null);
   };
 
   const guardarEdit = () => {
     if (!editando) return;
-    if (!editForm.nombre?.trim()) return setError("El nombre es obligatorio.");
-    if (!editForm.email?.trim()) return setError("El email es obligatorio.");
+    if (!editForm.nombre?.trim()) return setEditError("El nombre es obligatorio.");
+    if (!editForm.email?.trim()) return setEditError("El email es obligatorio.");
     actualizarProveedor.mutate(
       { id: editando.id, ...editForm },
       {
-        onSuccess: () => setEditando(null),
-        onError: () => setError("No se pudo guardar. Intenta nuevamente."),
+        onSuccess: () => { setEditando(null); toast.success("Proveedor actualizado."); },
+        onError: () => setEditError("No se pudo guardar. Intenta nuevamente."),
       },
     );
   };
 
-  const handleDelete = (p: Proveedor) => {
-    if (!window.confirm(`¿Eliminar proveedor "${p.nombre}"? Esta acción no se puede deshacer.`))
-      return;
-    eliminarProveedor.mutate(p.id);
+  const confirmarEliminar = () => {
+    if (!confirmDelete) return;
+    eliminarProveedor.mutate(confirmDelete.id, {
+      onSuccess: () => { setConfirmDelete(null); toast.success("Proveedor eliminado."); },
+      onError: (err) => { toast.error(`Error al eliminar: ${err.message}`); setConfirmDelete(null); },
+    });
   };
 
   const toggleMat = (id: string) => {
@@ -69,9 +74,7 @@ function ProveedoresList() {
         crumbs={[{ label: "Compras" }, { label: "Proveedores" }]}
         actions={
           <Link to="/compras/proveedores/nuevo">
-            <Button>
-              <Plus className="h-4 w-4" /> Nuevo proveedor
-            </Button>
+            <Button><Plus className="h-4 w-4" /> Nuevo proveedor</Button>
           </Link>
         }
       />
@@ -86,7 +89,7 @@ function ProveedoresList() {
                 <th className="px-3 py-2 text-left font-medium">Contacto</th>
                 <th className="px-3 py-2 text-left font-medium">Materiales</th>
                 <th className="px-3 py-2 text-left font-medium">Condiciones</th>
-                {puedeEditar && <th className="px-3 py-2" />}
+                {puedeEditar && <th className="px-3 py-2 w-16" />}
               </tr>
             </thead>
             <tbody>
@@ -112,7 +115,7 @@ function ProveedoresList() {
                           <Pencil className="h-3.5 w-3.5" />
                         </button>
                         <button
-                          onClick={() => handleDelete(p)}
+                          onClick={() => setConfirmDelete(p)}
                           className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-destructive"
                           title="Eliminar"
                         >
@@ -128,54 +131,33 @@ function ProveedoresList() {
         </div>
       )}
 
-      {/* Modal editar */}
-      {editando && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      {/* Modal editar — portal al body para evitar stacking context */}
+      {editando && createPortal(
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 p-4">
           <div className="w-full max-w-md rounded-lg border border-border bg-surface p-5 shadow-xl">
             <h2 className="mb-4 text-sm font-semibold">Editar proveedor</h2>
-            {error && <ErrorBanner>{error}</ErrorBanner>}
+            {editError && <ErrorBanner>{editError}</ErrorBanner>}
             <div className="space-y-3">
               <Field label="Nombre" required>
-                <TextInput
-                  value={editForm.nombre ?? ""}
-                  onChange={(e) => setEditForm({ ...editForm, nombre: e.target.value })}
-                />
+                <TextInput value={editForm.nombre ?? ""} onChange={(e) => setEditForm({ ...editForm, nombre: e.target.value })} />
               </Field>
               <Field label="Persona de contacto">
-                <TextInput
-                  value={editForm.contacto ?? ""}
-                  onChange={(e) => setEditForm({ ...editForm, contacto: e.target.value })}
-                />
+                <TextInput value={editForm.contacto ?? ""} onChange={(e) => setEditForm({ ...editForm, contacto: e.target.value })} />
               </Field>
               <Field label="Teléfono">
-                <TextInput
-                  value={editForm.telefono ?? ""}
-                  onChange={(e) => setEditForm({ ...editForm, telefono: e.target.value })}
-                />
+                <TextInput value={editForm.telefono ?? ""} onChange={(e) => setEditForm({ ...editForm, telefono: e.target.value })} />
               </Field>
               <Field label="Email" required>
-                <TextInput
-                  type="email"
-                  value={editForm.email ?? ""}
-                  onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
-                />
+                <TextInput type="email" value={editForm.email ?? ""} onChange={(e) => setEditForm({ ...editForm, email: e.target.value })} />
               </Field>
               <Field label="Condiciones de pago">
-                <TextInput
-                  value={editForm.condicionesPago ?? ""}
-                  onChange={(e) => setEditForm({ ...editForm, condicionesPago: e.target.value })}
-                />
+                <TextInput value={editForm.condicionesPago ?? ""} onChange={(e) => setEditForm({ ...editForm, condicionesPago: e.target.value })} />
               </Field>
               <Field label="Materiales que suministra">
                 <div className="grid grid-cols-2 gap-1 max-h-32 overflow-y-auto">
                   {materiales.map((m) => (
-                    <label key={m.id} className="flex items-center gap-2 text-sm cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={(editForm.materialesIds ?? []).includes(m.id)}
-                        onChange={() => toggleMat(m.id)}
-                        className="h-3.5 w-3.5"
-                      />
+                    <label key={m.id} className="flex cursor-pointer items-center gap-2 text-sm">
+                      <input type="checkbox" checked={(editForm.materialesIds ?? []).includes(m.id)} onChange={() => toggleMat(m.id)} className="h-3.5 w-3.5" />
                       {m.nombre}
                     </label>
                   ))}
@@ -183,17 +165,34 @@ function ProveedoresList() {
               </Field>
             </div>
             <div className="mt-4 flex justify-end gap-2">
-              <Button variant="secondary" onClick={() => setEditando(null)}>
-                Cancelar
-              </Button>
+              <Button variant="secondary" onClick={() => setEditando(null)}>Cancelar</Button>
               <Button onClick={guardarEdit} disabled={actualizarProveedor.isPending}>
                 {actualizarProveedor.isPending ? "Guardando…" : "Guardar"}
               </Button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
 
+      {/* Modal confirmar eliminar — portal al body */}
+      {confirmDelete && createPortal(
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-sm rounded-lg border border-border bg-surface p-5 shadow-xl">
+            <h2 className="text-sm font-semibold">¿Eliminar proveedor?</h2>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Se eliminará <strong>{confirmDelete.nombre}</strong> permanentemente.
+            </p>
+            <div className="mt-4 flex justify-end gap-2">
+              <Button variant="secondary" onClick={() => setConfirmDelete(null)}>Cancelar</Button>
+              <Button variant="danger" onClick={confirmarEliminar} disabled={eliminarProveedor.isPending}>
+                {eliminarProveedor.isPending ? "Eliminando…" : "Eliminar"}
+              </Button>
+            </div>
+          </div>
+        </div>,
+        document.body,
+      )}
     </div>
   );
 }
