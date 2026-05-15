@@ -104,9 +104,9 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   return (
     <div className="flex h-full flex-col">
       <div className="flex items-center gap-2 px-4 py-4">
-        <div className="flex h-9 w-9 items-center justify-center rounded-md bg-accent text-accent-foreground">
+        <Link to="/comercial" className="flex h-9 w-9 items-center justify-center rounded-md bg-accent text-accent-foreground hover:opacity-80 transition-opacity">
           <Hammer className="h-5 w-5" />
-        </div>
+        </Link>
         <div className="leading-tight">
           <div className="text-sm font-semibold text-sidebar-foreground">HF HomeFort</div>
           <div className="text-[11px] uppercase tracking-wide text-sidebar-foreground/60">
