@@ -122,6 +122,14 @@ const MILESTONE_ACCIONES: Partial<Record<string, MilestoneAction[]>> = {
         "¿Generar la orden de producción para este proyecto? Esto formaliza el inicio de fabricación.",
       requiredArea: "administrativa",
     },
+    {
+      estado: "En cotización",
+      label: "Revertir aprobación",
+      variant: "secondary",
+      question:
+        "¿Revertir la aprobación? El proyecto volverá a estado En cotización y podrás corregir antes de re-aprobar.",
+      requiredArea: "comercial",
+    },
   ],
   "En producción": [
     {
@@ -147,6 +155,16 @@ const MILESTONE_ACCIONES: Partial<Record<string, MilestoneAction[]>> = {
       label: "Cerrar garantía",
       variant: "secondary",
       question: "¿El período de garantía ha concluido satisfactoriamente?",
+      requiredArea: "comercial",
+    },
+  ],
+  Rechazada: [
+    {
+      estado: "En definición",
+      label: "Reabrir proyecto",
+      variant: "secondary",
+      question:
+        "¿Reabrir el proyecto? Volverá a En definición para que puedas ajustar specs y cotización.",
       requiredArea: "comercial",
     },
   ],
