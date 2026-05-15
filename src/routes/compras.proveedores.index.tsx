@@ -29,6 +29,7 @@ function ProveedoresList() {
   const [editForm, setEditForm] = useState<Partial<Proveedor>>({});
   const [editError, setEditError] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<Proveedor | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const puedeEditar = (usuario?.esAdmin || usuario?.areas.includes("compras")) ?? false;
 
@@ -53,9 +54,10 @@ function ProveedoresList() {
 
   const confirmarEliminar = () => {
     if (!confirmDelete) return;
+    setDeleteError(null);
     eliminarProveedor.mutate(confirmDelete.id, {
-      onSuccess: () => { setConfirmDelete(null); toast.success("Proveedor eliminado."); },
-      onError: (err) => { toast.error(`Error al eliminar: ${err.message}`); setConfirmDelete(null); },
+      onSuccess: () => { setConfirmDelete(null); setDeleteError(null); toast.success("Proveedor eliminado."); },
+      onError: (err) => setDeleteError(err.message || "No se pudo eliminar. Intenta nuevamente."),
     });
   };
 
@@ -183,6 +185,9 @@ function ProveedoresList() {
             <p className="mt-2 text-sm text-muted-foreground">
               Se eliminará <strong>{confirmDelete.nombre}</strong> permanentemente.
             </p>
+            {deleteError && (
+              <p className="mt-2 rounded bg-destructive/10 px-3 py-2 text-xs text-destructive">{deleteError}</p>
+            )}
             <div className="mt-4 flex justify-end gap-2">
               <Button variant="secondary" onClick={() => setConfirmDelete(null)}>Cancelar</Button>
               <Button variant="danger" onClick={confirmarEliminar} disabled={eliminarProveedor.isPending}>

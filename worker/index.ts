@@ -27,7 +27,13 @@ app.route("/api/auth", authRoutes);
 app.route("/api/comercial", comercialRoutes);
 app.route("/api/compras", comprasRoutes);
 
-// Serve the SPA for everything that isn't an API route
-app.get("*", (c) => c.env.ASSETS.fetch(c.req.raw));
+// Serve the SPA — fallback to index.html for client-side routes
+app.get("*", async (c) => {
+  const res = await c.env.ASSETS.fetch(c.req.raw);
+  if (res.status === 404) {
+    return c.env.ASSETS.fetch(new Request(new URL("/", c.req.url).toString()));
+  }
+  return res;
+});
 
 export default app;
