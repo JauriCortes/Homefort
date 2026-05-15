@@ -115,14 +115,6 @@ const MILESTONE_ACCIONES: Partial<Record<string, MilestoneAction[]>> = {
   ],
   Aprobada: [
     {
-      estado: "En producción",
-      label: "Generar orden de producción →",
-      variant: "primary",
-      question:
-        "¿Generar la orden de producción para este proyecto? Esto formaliza el inicio de fabricación.",
-      requiredArea: "administrativa",
-    },
-    {
       estado: "En cotización",
       label: "Revertir aprobación",
       variant: "secondary",
