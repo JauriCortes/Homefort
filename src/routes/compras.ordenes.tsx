@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
-import { Plus, Pencil, Trash2 } from "lucide-react";
+import { Plus, Pencil, Trash2, ArrowRight, X } from "lucide-react";
 import { toast } from "sonner";
 import { formatCOP } from "@/lib/store";
 import { useMe } from "@/hooks/api/use-auth";
@@ -14,6 +14,7 @@ import {
   useCrearOrdenCompra,
   useActualizarOrdenCompra,
   useEliminarOrdenCompra,
+  useRegistrarMovimiento,
   type OrdenCompra,
   type Material,
 } from "@/hooks/api/use-compras";
@@ -26,6 +27,25 @@ export const Route = createFileRoute("/compras/ordenes")({
 
 type OrdenEstado = "borrador" | "enviada" | "recibida" | "cancelada";
 
+const GRUPOS: { estado: OrdenEstado; label: string; underline: string }[] = [
+  { estado: "borrador",  label: "Borrador",  underline: "border-border" },
+  { estado: "enviada",   label: "Enviada",   underline: "border-blue-500" },
+  { estado: "recibida",  label: "Recibida",  underline: "border-green-500" },
+  { estado: "cancelada", label: "Cancelada", underline: "border-destructive" },
+];
+
+const SIGUIENTE: Partial<Record<OrdenEstado, OrdenEstado>> = {
+  borrador: "enviada",
+  enviada: "recibida",
+};
+
+const LABEL_SIGUIENTE: Partial<Record<OrdenEstado, string>> = {
+  borrador: "Marcar como enviada",
+  enviada: "Marcar como recibida",
+};
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
 interface FilaItem {
   materialNombre: string;
   cantidad: string;
@@ -35,6 +55,24 @@ interface FilaItem {
 function crearFila(): FilaItem {
   return { materialNombre: "", cantidad: "", precioUnitario: "" };
 }
+
+function resolverItems(filas: FilaItem[], materiales: Material[]) {
+  return filas
+    .filter((f) => f.materialNombre.trim() && f.cantidad)
+    .map((f) => {
+      const mat = materiales.find(
+        (m) => m.nombre.toLowerCase() === f.materialNombre.trim().toLowerCase(),
+      );
+      return {
+        materialId: mat?.id ?? null,
+        descripcion: f.materialNombre.trim(),
+        cantidad: Number(f.cantidad),
+        precioUnitario: Number(f.precioUnitario) || 0,
+      };
+    });
+}
+
+// ── Sub-components ────────────────────────────────────────────────────────────
 
 function MaterialAutocomplete({
   value,
@@ -56,7 +94,7 @@ function MaterialAutocomplete({
         ref={inputRef}
         type="text"
         value={value}
-        placeholder="Material…"
+        placeholder="Material o descripción…"
         className="w-full rounded border border-border bg-transparent px-2 py-1.5 text-sm outline-none focus:border-ring focus:ring-1 focus:ring-ring/30"
         onChange={(e) => { onChange(e.target.value); setOpen(true); }}
         onFocus={() => setOpen(true)}
@@ -134,9 +172,7 @@ function ItemsTable({
   onRemove: (i: number) => void;
 }) {
   const total = filas.reduce((sum, f) => {
-    const c = parseFloat(f.cantidad) || 0;
-    const p = parseFloat(f.precioUnitario) || 0;
-    return sum + c * p;
+    return sum + (parseFloat(f.cantidad) || 0) * (parseFloat(f.precioUnitario) || 0);
   }, 0);
 
   return (
@@ -145,7 +181,7 @@ function ItemsTable({
         <table className="w-full text-sm">
           <thead className="bg-muted/50 text-xs uppercase tracking-wide text-muted-foreground">
             <tr>
-              <th className="px-3 py-2 text-left font-medium w-52">Material</th>
+              <th className="px-3 py-2 text-left font-medium w-52">Material / descripción</th>
               <th className="px-3 py-2 text-left font-medium w-24">Cantidad</th>
               <th className="px-3 py-2 text-left font-medium w-32">Precio unit.</th>
               <th className="px-3 py-2 text-right font-medium w-32">Total</th>
@@ -210,30 +246,14 @@ function ItemsTable({
           <Plus className="h-3.5 w-3.5" /> Agregar fila
         </button>
         {total > 0 && (
-          <span className="text-xs font-medium tabular-nums">
-            Total: {formatCOP(total)}
-          </span>
+          <span className="text-xs font-medium tabular-nums">Total: {formatCOP(total)}</span>
         )}
       </div>
     </div>
   );
 }
 
-function resolverItems(filas: FilaItem[], materiales: Material[]) {
-  return filas
-    .filter((f) => f.materialNombre.trim() && f.cantidad)
-    .map((f) => {
-      const mat = materiales.find(
-        (m) => m.nombre.toLowerCase() === f.materialNombre.trim().toLowerCase(),
-      );
-      return {
-        materialId: mat?.id ?? null,
-        descripcion: f.materialNombre.trim(),
-        cantidad: Number(f.cantidad),
-        precioUnitario: Number(f.precioUnitario) || 0,
-      };
-    });
-}
+// ── Page ──────────────────────────────────────────────────────────────────────
 
 function OrdenesCompraPage() {
   const { data: usuario } = useMe();
@@ -244,6 +264,7 @@ function OrdenesCompraPage() {
   const crearOrden = useCrearOrdenCompra();
   const actualizarOrden = useActualizarOrdenCompra();
   const eliminarOrden = useEliminarOrdenCompra();
+  const registrarMovimiento = useRegistrarMovimiento();
 
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ proyectoId: "", proveedorId: "", fechaEntregaEstimada: "", notas: "" });
@@ -257,8 +278,13 @@ function OrdenesCompraPage() {
   const [editForm, setEditForm] = useState<Partial<OrdenCompra>>({});
   const [editFilas, setEditFilas] = useState<FilaItem[]>([crearFila()]);
   const [editError, setEditError] = useState<string | null>(null);
+
   const [confirmDelete, setConfirmDelete] = useState<OrdenCompra | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  const [pendingTransicion, setPendingTransicion] = useState<{ orden: OrdenCompra; nuevoEstado: OrdenEstado } | null>(null);
+  const [transicionError, setTransicionError] = useState<string | null>(null);
+  const [transicionando, setTransicionando] = useState(false);
 
   const puedeEditar = (usuario?.esAdmin || usuario?.areas.includes("compras")) ?? false;
 
@@ -282,7 +308,6 @@ function OrdenesCompraPage() {
     if (!form.proveedorId) errs.proveedorId = "Selecciona un proveedor.";
     if (!form.fechaEntregaEstimada) errs.fechaEntregaEstimada = "Ingresa la fecha estimada.";
     if (Object.keys(errs).length) return setFieldErrors(errs);
-
     const items = resolverItems(filas, materiales);
     crearOrden.mutate(
       { proyectoId: form.proyectoId || null, proveedorId: form.proveedorId, fechaEntregaEstimada: form.fechaEntregaEstimada, notas: form.notas || null, solicitudId: null, items },
@@ -326,6 +351,61 @@ function OrdenesCompraPage() {
     );
   };
 
+  const confirmarTransicion = async () => {
+    if (!pendingTransicion) return;
+    const { orden, nuevoEstado } = pendingTransicion;
+    setTransicionError(null);
+    setTransicionando(true);
+
+    // Si se recibe la orden, registrar entradas en inventario para ítems con materialId
+    if (nuevoEstado === "recibida") {
+      const itemsConMaterial = orden.items.filter((i) => i.materialId !== null);
+      try {
+        for (const item of itemsConMaterial) {
+          await new Promise<void>((resolve, reject) =>
+            registrarMovimiento.mutate(
+              {
+                materialId: item.materialId!,
+                tipo: "entrada",
+                cantidad: item.cantidad,
+                fecha: new Date().toISOString().slice(0, 10),
+                proveedorId: orden.proveedorId,
+                proyectoId: orden.proyectoId,
+                notas: `Recepción automática — ${orden.codigo}`,
+              },
+              { onSuccess: () => resolve(), onError: reject },
+            ),
+          );
+        }
+      } catch {
+        setTransicionError("Error al registrar entradas en inventario. Intenta nuevamente.");
+        setTransicionando(false);
+        return;
+      }
+    }
+
+    actualizarOrden.mutate(
+      { id: orden.id, estado: nuevoEstado },
+      {
+        onSuccess: () => {
+          setPendingTransicion(null);
+          setTransicionando(false);
+          const msg =
+            nuevoEstado === "recibida"
+              ? "Orden recibida y stock actualizado."
+              : nuevoEstado === "cancelada"
+                ? "Orden cancelada."
+                : "Estado actualizado.";
+          toast.success(msg);
+        },
+        onError: () => {
+          setTransicionError("No se pudo actualizar el estado.");
+          setTransicionando(false);
+        },
+      },
+    );
+  };
+
   const confirmarEliminar = () => {
     if (!confirmDelete) return;
     setDeleteError(null);
@@ -341,15 +421,24 @@ function OrdenesCompraPage() {
   const ordenTotal = (o: OrdenCompra) =>
     o.items.reduce((s, i) => s + i.cantidad * i.precioUnitario, 0);
 
+  const totalOrdenes = ordenesFiltradas.length;
+
   return (
     <div>
       <PageHeader
         title="Órdenes de compra"
         crumbs={[{ label: "Compras" }, { label: "Órdenes" }]}
-        actions={puedeEditar ? <Button onClick={() => { setShowForm((v) => !v); setFilas([crearFila()]); setFormError(null); }}><Plus className="h-4 w-4" /> {showForm ? "Cancelar" : "Nueva orden"}</Button> : undefined}
+        actions={
+          puedeEditar ? (
+            <Button onClick={() => { setShowForm((v) => !v); setFilas([crearFila()]); setFormError(null); }}>
+              <Plus className="h-4 w-4" /> {showForm ? "Cancelar" : "Nueva orden"}
+            </Button>
+          ) : undefined
+        }
       />
       {ok && <SuccessBanner>{ok}</SuccessBanner>}
-      <div className="mb-3 flex items-center gap-2">
+
+      <div className="mb-4 flex items-center gap-2">
         <input
           type="search"
           placeholder="Buscar por código o proyecto…"
@@ -361,7 +450,7 @@ function OrdenesCompraPage() {
       </div>
 
       {showForm && (
-        <form onSubmit={guardar} className="mb-4 space-y-4 rounded-lg border border-border bg-surface p-4">
+        <form onSubmit={guardar} className="mb-6 space-y-4 rounded-lg border border-border bg-surface p-4">
           {formError && <ErrorBanner>{formError}</ErrorBanner>}
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Proyecto" error={fieldErrors.proyectoId}>
@@ -400,73 +489,171 @@ function OrdenesCompraPage() {
         </form>
       )}
 
-      {ordenesFiltradas.length === 0 ? (
+      {/* Grouped by estado */}
+      {totalOrdenes === 0 ? (
         <EmptyState
           title={busqueda ? "Sin resultados" : "Sin órdenes de compra"}
           description={busqueda ? `No hay órdenes que coincidan con "${busqueda}".` : "Crea la primera orden de compra."}
         />
       ) : (
-        <div className="overflow-hidden rounded-lg border border-border bg-surface">
-          <table className="w-full text-sm">
-            <thead className="bg-muted/50 text-xs uppercase tracking-wide text-muted-foreground">
-              <tr>
-                <th className="px-3 py-2 text-left font-medium">Código</th>
-                <th className="px-3 py-2 text-left font-medium">Proyecto</th>
-                <th className="px-3 py-2 text-left font-medium">Proveedor</th>
-                <th className="px-3 py-2 text-left font-medium">Entrega est.</th>
-                <th className="px-3 py-2 text-right font-medium">Total</th>
-                <th className="px-3 py-2 text-left font-medium">Estado</th>
-                {puedeEditar && <th className="px-3 py-2 w-16" />}
-              </tr>
-            </thead>
-            <tbody>
-              {ordenesFiltradas.map((o) => {
-                const proy = proyectos.find((p) => p.id === o.proyectoId) as { codigo?: string } | undefined;
-                const prov = proveedores.find((p) => p.id === o.proveedorId);
-                const total = ordenTotal(o);
-                return (
-                  <tr key={o.id} className="border-t border-border">
-                    <td className="px-3 py-2 font-medium">{o.codigo}</td>
-                    <td className="px-3 py-2 text-muted-foreground">{proy?.codigo ?? (o.proyectoId ? o.proyectoId : "—")}</td>
-                    <td className="px-3 py-2 text-muted-foreground">{prov?.nombre ?? o.proveedorId}</td>
-                    <td className="px-3 py-2 text-muted-foreground">{o.fechaEntregaEstimada}</td>
-                    <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">
-                      {total > 0 ? formatCOP(total) : <span className="text-xs">—</span>}
-                    </td>
-                    <td className="px-3 py-2">
-                      <select
-                        value={o.estado}
-                        disabled={!puedeEditar}
-                        onChange={(ev) => actualizarOrden.mutate({ id: o.id, estado: ev.target.value as OrdenEstado })}
-                        className="rounded border border-border bg-surface px-2 py-0.5 text-xs disabled:cursor-not-allowed disabled:opacity-60"
-                      >
-                        <option value="borrador">Borrador</option>
-                        <option value="enviada">Enviada</option>
-                        <option value="recibida">Recibida</option>
-                        <option value="cancelada">Cancelada</option>
-                      </select>
-                    </td>
-                    {puedeEditar && (
-                      <td className="px-3 py-2">
-                        <div className="flex items-center justify-end gap-1">
-                          <button onClick={() => abrirEdit(o)} className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground" title="Editar">
-                            <Pencil className="h-3.5 w-3.5" />
-                          </button>
-                          <button onClick={() => { setConfirmDelete(o); setDeleteError(null); }} className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-destructive" title="Eliminar">
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
-                        </div>
-                      </td>
-                    )}
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+        <div className="space-y-6">
+          {GRUPOS.map(({ estado, label, underline }) => {
+            const lista = ordenesFiltradas.filter((o) => o.estado === estado);
+            if (lista.length === 0) return null;
+            return (
+              <section key={estado}>
+                <h3 className={`mb-3 border-b-2 pb-1 text-sm font-semibold ${underline}`}>{label}</h3>
+                <div className="overflow-hidden rounded-lg border border-border bg-surface">
+                  <table className="w-full text-sm">
+                    <thead className="bg-muted/50 text-xs uppercase tracking-wide text-muted-foreground">
+                      <tr>
+                        <th className="px-3 py-2 text-left font-medium">Código</th>
+                        <th className="px-3 py-2 text-left font-medium">Proyecto</th>
+                        <th className="px-3 py-2 text-left font-medium">Proveedor</th>
+                        <th className="px-3 py-2 text-left font-medium">Entrega est.</th>
+                        <th className="px-3 py-2 text-right font-medium">Total</th>
+                        {puedeEditar && <th className="px-3 py-2 w-56 text-right font-medium" />}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {lista.map((o) => {
+                        const proy = proyectos.find((p) => p.id === o.proyectoId) as { codigo?: string } | undefined;
+                        const prov = proveedores.find((p) => p.id === o.proveedorId);
+                        const total = ordenTotal(o);
+                        const siguienteEstado = SIGUIENTE[o.estado];
+                        return (
+                          <tr key={o.id} className="border-t border-border">
+                            <td className="px-3 py-2 font-medium">{o.codigo}</td>
+                            <td className="px-3 py-2 text-muted-foreground">{proy?.codigo ?? (o.proyectoId ? o.proyectoId : "—")}</td>
+                            <td className="px-3 py-2 text-muted-foreground">{prov?.nombre ?? o.proveedorId}</td>
+                            <td className="px-3 py-2 text-muted-foreground">{o.fechaEntregaEstimada}</td>
+                            <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">
+                              {total > 0 ? formatCOP(total) : <span className="text-xs">—</span>}
+                            </td>
+                            {puedeEditar && (
+                              <td className="px-3 py-2">
+                                <div className="flex items-center justify-end gap-1">
+                                  {siguienteEstado && (
+                                    <button
+                                      onClick={() => { setPendingTransicion({ orden: o, nuevoEstado: siguienteEstado }); setTransicionError(null); }}
+                                      className="flex items-center gap-1 rounded bg-muted px-2 py-0.5 text-xs font-medium hover:bg-accent hover:text-accent-foreground"
+                                    >
+                                      <ArrowRight className="h-3 w-3" />
+                                      {LABEL_SIGUIENTE[o.estado]}
+                                    </button>
+                                  )}
+                                  {(o.estado === "borrador" || o.estado === "enviada") && (
+                                    <button
+                                      onClick={() => { setPendingTransicion({ orden: o, nuevoEstado: "cancelada" }); setTransicionError(null); }}
+                                      className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-destructive"
+                                      title="Cancelar orden"
+                                    >
+                                      <X className="h-3.5 w-3.5" />
+                                    </button>
+                                  )}
+                                  <button onClick={() => abrirEdit(o)} className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground" title="Editar">
+                                    <Pencil className="h-3.5 w-3.5" />
+                                  </button>
+                                  <button onClick={() => { setConfirmDelete(o); setDeleteError(null); }} className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-destructive" title="Eliminar">
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                  </button>
+                                </div>
+                              </td>
+                            )}
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+            );
+          })}
         </div>
       )}
 
-      {/* Modal editar orden */}
+      {/* Modal — confirmar transición de estado */}
+      {pendingTransicion && createPortal(
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-sm rounded-lg border border-border bg-surface p-5 shadow-xl">
+            {pendingTransicion.nuevoEstado === "cancelada" ? (
+              <>
+                <h2 className="text-sm font-semibold">¿Cancelar esta orden?</h2>
+                <p className="mt-2 text-sm text-muted-foreground">
+                  La orden <strong>{pendingTransicion.orden.codigo}</strong> se marcará como cancelada.
+                </p>
+              </>
+            ) : pendingTransicion.nuevoEstado === "enviada" ? (
+              <>
+                <h2 className="text-sm font-semibold">¿Marcar como enviada?</h2>
+                <p className="mt-2 text-sm text-muted-foreground">
+                  La orden <strong>{pendingTransicion.orden.codigo}</strong> se marcará como enviada al proveedor.
+                </p>
+              </>
+            ) : (
+              <>
+                <h2 className="text-sm font-semibold">¿Confirmar recepción?</h2>
+                <p className="mt-2 text-sm text-muted-foreground">
+                  La orden <strong>{pendingTransicion.orden.codigo}</strong> se marcará como recibida.
+                </p>
+                {(() => {
+                  const conMaterial = pendingTransicion.orden.items.filter((i) => i.materialId !== null);
+                  const sinMaterial = pendingTransicion.orden.items.filter((i) => i.materialId === null);
+                  return (
+                    <div className="mt-3 space-y-2">
+                      {conMaterial.length > 0 && (
+                        <div>
+                          <p className="text-xs font-medium text-green-600">Se agregarán al inventario:</p>
+                          <ul className="mt-1 space-y-0.5">
+                            {conMaterial.map((item, i) => (
+                              <li key={i} className="text-xs text-muted-foreground">
+                                • {item.descripcion} ({item.cantidad} unidades)
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                      {sinMaterial.length > 0 && (
+                        <div>
+                          <p className="text-xs font-medium text-muted-foreground">Sin entrada en inventario (no están en el catálogo):</p>
+                          <ul className="mt-1 space-y-0.5">
+                            {sinMaterial.map((item, i) => (
+                              <li key={i} className="text-xs text-muted-foreground">• {item.descripcion}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                      {pendingTransicion.orden.items.length === 0 && (
+                        <p className="text-xs text-muted-foreground">Esta orden no tiene ítems — no se registrará nada en inventario.</p>
+                      )}
+                    </div>
+                  );
+                })()}
+              </>
+            )}
+            {transicionError && <p className="mt-2 rounded bg-destructive/10 px-3 py-2 text-xs text-destructive">{transicionError}</p>}
+            <div className="mt-4 flex justify-end gap-2">
+              <Button variant="secondary" onClick={() => setPendingTransicion(null)}>Volver</Button>
+              <Button
+                variant={pendingTransicion.nuevoEstado === "cancelada" ? "danger" : "primary"}
+                onClick={confirmarTransicion}
+                disabled={transicionando}
+              >
+                {transicionando
+                  ? "Procesando…"
+                  : pendingTransicion.nuevoEstado === "cancelada"
+                    ? "Cancelar orden"
+                    : pendingTransicion.nuevoEstado === "recibida"
+                      ? "Confirmar recepción"
+                      : "Marcar como enviada"}
+              </Button>
+            </div>
+          </div>
+        </div>,
+        document.body,
+      )}
+
+      {/* Modal — editar orden */}
       {editando && createPortal(
         <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 p-4">
           <div className="w-full max-w-2xl rounded-lg border border-border bg-surface p-5 shadow-xl max-h-[90vh] overflow-y-auto">
@@ -506,7 +693,7 @@ function OrdenesCompraPage() {
         document.body,
       )}
 
-      {/* Modal confirmar eliminar orden */}
+      {/* Modal — confirmar eliminar orden */}
       {confirmDelete && createPortal(
         <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 p-4">
           <div className="w-full max-w-sm rounded-lg border border-border bg-surface p-5 shadow-xl">
