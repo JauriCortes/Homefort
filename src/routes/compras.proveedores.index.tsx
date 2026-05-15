@@ -24,7 +24,6 @@ function ProveedoresList() {
   const eliminarProveedor = useEliminarProveedor();
 
   const [editando, setEditando] = useState<Proveedor | null>(null);
-  const [confirmDelete, setConfirmDelete] = useState<Proveedor | null>(null);
   const [editForm, setEditForm] = useState<Partial<Proveedor>>({});
   const [error, setError] = useState<string | null>(null);
 
@@ -49,11 +48,10 @@ function ProveedoresList() {
     );
   };
 
-  const confirmarEliminar = () => {
-    if (!confirmDelete) return;
-    eliminarProveedor.mutate(confirmDelete.id, {
-      onSuccess: () => setConfirmDelete(null),
-    });
+  const handleDelete = (p: Proveedor) => {
+    if (!window.confirm(`¿Eliminar proveedor "${p.nombre}"? Esta acción no se puede deshacer.`))
+      return;
+    eliminarProveedor.mutate(p.id);
   };
 
   const toggleMat = (id: string) => {
@@ -114,7 +112,7 @@ function ProveedoresList() {
                           <Pencil className="h-3.5 w-3.5" />
                         </button>
                         <button
-                          onClick={() => setConfirmDelete(p)}
+                          onClick={() => handleDelete(p)}
                           className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-destructive"
                           title="Eliminar"
                         >
@@ -196,29 +194,6 @@ function ProveedoresList() {
         </div>
       )}
 
-      {/* Modal confirmar eliminar */}
-      {confirmDelete && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="w-full max-w-sm rounded-lg border border-border bg-surface p-5 shadow-xl">
-            <h2 className="text-sm font-semibold">¿Eliminar proveedor?</h2>
-            <p className="mt-2 text-sm text-muted-foreground">
-              Se eliminará <strong>{confirmDelete.nombre}</strong> permanentemente.
-            </p>
-            <div className="mt-4 flex justify-end gap-2">
-              <Button variant="secondary" onClick={() => setConfirmDelete(null)}>
-                Cancelar
-              </Button>
-              <Button
-                variant="danger"
-                onClick={confirmarEliminar}
-                disabled={eliminarProveedor.isPending}
-              >
-                Eliminar
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
