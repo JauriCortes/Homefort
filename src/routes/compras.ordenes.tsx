@@ -219,24 +219,20 @@ function ItemsTable({
   );
 }
 
-function resolverItems(
-  filas: FilaItem[],
-  materiales: Material[],
-): { materialId: string; cantidad: number; precioUnitario: number }[] | null {
-  const validas = filas.filter((f) => f.materialNombre.trim() && f.cantidad);
-  for (const f of validas) {
-    const mat = materiales.find(
-      (m) => m.nombre.toLowerCase() === f.materialNombre.trim().toLowerCase(),
-    );
-    if (!mat) return null;
-  }
-  return validas.map((f) => ({
-    materialId: materiales.find(
-      (m) => m.nombre.toLowerCase() === f.materialNombre.trim().toLowerCase(),
-    )!.id,
-    cantidad: Number(f.cantidad),
-    precioUnitario: Number(f.precioUnitario) || 0,
-  }));
+function resolverItems(filas: FilaItem[], materiales: Material[]) {
+  return filas
+    .filter((f) => f.materialNombre.trim() && f.cantidad)
+    .map((f) => {
+      const mat = materiales.find(
+        (m) => m.nombre.toLowerCase() === f.materialNombre.trim().toLowerCase(),
+      );
+      return {
+        materialId: mat?.id ?? null,
+        descripcion: f.materialNombre.trim(),
+        cantidad: Number(f.cantidad),
+        precioUnitario: Number(f.precioUnitario) || 0,
+      };
+    });
 }
 
 function OrdenesCompraPage() {
@@ -288,8 +284,6 @@ function OrdenesCompraPage() {
     if (Object.keys(errs).length) return setFieldErrors(errs);
 
     const items = resolverItems(filas, materiales);
-    if (items === null) return setFormError("Algunos materiales no se reconocen. Selecciónalos del listado.");
-
     crearOrden.mutate(
       { proyectoId: form.proyectoId || null, proveedorId: form.proveedorId, fechaEntregaEstimada: form.fechaEntregaEstimada, notas: form.notas || null, solicitudId: null, items },
       {
@@ -311,7 +305,7 @@ function OrdenesCompraPage() {
     setEditFilas(
       o.items.length > 0
         ? o.items.map((item) => ({
-            materialNombre: materiales.find((m) => m.id === item.materialId)?.nombre ?? item.materialId,
+            materialNombre: item.descripcion || (materiales.find((m) => m.id === item.materialId)?.nombre ?? ""),
             cantidad: String(item.cantidad),
             precioUnitario: String(item.precioUnitario),
           }))
@@ -323,10 +317,6 @@ function OrdenesCompraPage() {
   const guardarEdit = () => {
     if (!editando) return;
     const items = resolverItems(editFilas, materiales);
-    if (items === null) {
-      setEditError("Algunos materiales no se reconocen. Selecciónalos del listado.");
-      return;
-    }
     actualizarOrden.mutate(
       { id: editando.id, ...editForm, items },
       {

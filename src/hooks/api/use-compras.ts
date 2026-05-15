@@ -59,7 +59,7 @@ export interface OrdenCompra {
   fechaCreacion: string;
   fechaEntregaEstimada: string;
   estado: "borrador" | "enviada" | "recibida" | "cancelada";
-  items: { materialId: string; cantidad: number; precioUnitario: number }[];
+  items: { materialId: string | null; descripcion: string; cantidad: number; precioUnitario: number }[];
   notas: string | null;
 }
 
