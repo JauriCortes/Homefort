@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState, useRef } from "react";
+import { useState, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { Plus, Pencil, Trash2 } from "lucide-react";
 import { toast } from "sonner";
@@ -80,6 +80,46 @@ function MaterialAutocomplete({
   );
 }
 
+function NumericInput({
+  value,
+  onChange,
+  placeholder,
+  allowDecimals = false,
+  className,
+}: {
+  value: string;
+  onChange: (val: string) => void;
+  placeholder?: string;
+  allowDecimals?: boolean;
+  className?: string;
+}) {
+  const [editing, setEditing] = useState(false);
+  const num = allowDecimals ? parseFloat(value) : parseInt(value, 10);
+  const formatted =
+    !isNaN(num) && value !== ""
+      ? num.toLocaleString("es-CO", allowDecimals ? { maximumFractionDigits: 3 } : {})
+      : "";
+  const handleChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const raw = e.target.value.replace(allowDecimals ? /[^\d.]/g : /[^\d]/g, "");
+      onChange(raw);
+    },
+    [allowDecimals, onChange],
+  );
+  return (
+    <input
+      type="text"
+      inputMode={allowDecimals ? "decimal" : "numeric"}
+      value={editing ? value : formatted}
+      placeholder={placeholder}
+      className={className}
+      onFocus={() => setEditing(true)}
+      onBlur={() => setEditing(false)}
+      onChange={handleChange}
+    />
+  );
+}
+
 function ItemsTable({
   filas,
   materiales,
@@ -125,24 +165,19 @@ function ItemsTable({
                     />
                   </td>
                   <td className="px-2 py-1">
-                    <input
-                      type="number"
-                      min={0.01}
-                      step="0.01"
-                      placeholder="0"
+                    <NumericInput
+                      allowDecimals
                       value={fila.cantidad}
-                      onChange={(e) => onChange(i, { cantidad: e.target.value })}
+                      placeholder="0"
+                      onChange={(v) => onChange(i, { cantidad: v })}
                       className="w-full rounded border border-border bg-transparent px-2 py-1.5 text-sm outline-none focus:border-ring focus:ring-1 focus:ring-ring/30"
                     />
                   </td>
                   <td className="px-2 py-1">
-                    <input
-                      type="number"
-                      min={0}
-                      step="100"
-                      placeholder="0"
+                    <NumericInput
                       value={fila.precioUnitario}
-                      onChange={(e) => onChange(i, { precioUnitario: e.target.value })}
+                      placeholder="0"
+                      onChange={(v) => onChange(i, { precioUnitario: v })}
                       className="w-full rounded border border-border bg-transparent px-2 py-1.5 text-sm outline-none focus:border-ring focus:ring-1 focus:ring-ring/30"
                     />
                   </td>
