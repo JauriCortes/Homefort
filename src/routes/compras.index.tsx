@@ -1,22 +1,31 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
-import { useStore } from "@/hooks/use-store";
+import { createFileRoute } from "@tanstack/react-router";
 import { PageHeader } from "@/components/ui-bits";
+import {
+  useMateriales,
+  useMovimientos,
+  useSolicitudesCompra,
+  useOrdenesCompra,
+} from "@/hooks/api/use-compras";
 
 export const Route = createFileRoute("/compras/")({
   component: ComprasDashboard,
 });
 
 function ComprasDashboard() {
-  const solicitudes = useStore((s) => s.solicitudesCompra);
-  const ordenes = useStore((s) => s.ordenesCompra);
-  const movimientos = useStore((s) => s.movimientos);
-  const materiales = useStore((s) => s.materialesBase);
+  const { data: materiales = [] } = useMateriales();
+  const { data: movimientos = [] } = useMovimientos();
+  const { data: solicitudes = [] } = useSolicitudesCompra();
+  const { data: ordenes = [] } = useOrdenesCompra();
 
   const pendientes = solicitudes.filter((s) => s.estado === "pendiente").length;
 
   return (
     <div>
-      <PageHeader title="Compras" description="Gestion de inventario, proveedores y ordenes." crumbs={[{ label: "Compras" }]} />
+      <PageHeader
+        title="Compras"
+        description="Gestión de inventario, proveedores y órdenes."
+        crumbs={[{ label: "Compras" }]}
+      />
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         <div className="rounded-lg border border-border bg-surface p-4">
           <div className="text-xs text-muted-foreground">Materiales</div>
@@ -31,7 +40,7 @@ function ComprasDashboard() {
           <div className="mt-1 text-2xl font-semibold">{pendientes}</div>
         </div>
         <div className="rounded-lg border border-border bg-surface p-4">
-          <div className="text-xs text-muted-foreground">Ordenes de compra</div>
+          <div className="text-xs text-muted-foreground">Órdenes de compra</div>
           <div className="mt-1 text-2xl font-semibold">{ordenes.length}</div>
         </div>
       </div>

@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Plus } from "lucide-react";
-import { useStore } from "@/hooks/use-store";
+import { useProveedores, useMateriales } from "@/hooks/api/use-compras";
 import { PageHeader, EmptyState } from "@/components/ui-bits";
 import { Button } from "@/components/form-bits";
 
@@ -9,8 +9,8 @@ export const Route = createFileRoute("/compras/proveedores/")({
 });
 
 function ProveedoresList() {
-  const proveedores = useStore((s) => s.proveedores);
-  const materiales = useStore((s) => s.materialesBase);
+  const { data: proveedores = [] } = useProveedores();
+  const { data: materiales = [] } = useMateriales();
 
   return (
     <div>
@@ -18,7 +18,11 @@ function ProveedoresList() {
         title="Proveedores"
         crumbs={[{ label: "Compras" }, { label: "Proveedores" }]}
         actions={
-          <Link to="/compras/proveedores/nuevo"><Button><Plus className="h-4 w-4" /> Nuevo proveedor</Button></Link>
+          <Link to="/compras/proveedores/nuevo">
+            <Button>
+              <Plus className="h-4 w-4" /> Nuevo proveedor
+            </Button>
+          </Link>
         }
       />
       {proveedores.length === 0 ? (
@@ -40,9 +44,12 @@ function ProveedoresList() {
                   <td className="px-3 py-2 font-medium">{p.nombre}</td>
                   <td className="px-3 py-2 text-muted-foreground">{p.email}</td>
                   <td className="px-3 py-2 text-muted-foreground">
-                    {p.materialesIds.map((mid) => materiales.find((m) => m.id === mid)?.nombre).filter(Boolean).join(", ")}
+                    {p.materialesIds
+                      .map((mid) => materiales.find((m) => m.id === mid)?.nombre)
+                      .filter(Boolean)
+                      .join(", ") || "—"}
                   </td>
-                  <td className="px-3 py-2 text-muted-foreground">{p.condicionesPago}</td>
+                  <td className="px-3 py-2 text-muted-foreground">{p.condicionesPago || "—"}</td>
                 </tr>
               ))}
             </tbody>
