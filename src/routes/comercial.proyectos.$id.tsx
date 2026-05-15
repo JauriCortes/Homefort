@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { z } from "zod";
 import { useMe } from "@/hooks/api/use-auth";
+import type { UsuarioPublico } from "@/hooks/api/use-auth";
 import {
   useCliente,
   useProyecto,
@@ -83,6 +84,7 @@ type MilestoneAction = {
   label: string;
   variant: "primary" | "secondary" | "danger";
   question: string;
+  requiredArea?: string;
 };
 
 const MILESTONE_ACCIONES: Partial<Record<string, MilestoneAction[]>> = {
@@ -92,6 +94,7 @@ const MILESTONE_ACCIONES: Partial<Record<string, MilestoneAction[]>> = {
       label: "Pasar a cotización →",
       variant: "secondary",
       question: "¿Las especificaciones están listas para comenzar a cotizar?",
+      requiredArea: "comercial",
     },
   ],
   "En cotización": [
@@ -99,22 +102,25 @@ const MILESTONE_ACCIONES: Partial<Record<string, MilestoneAction[]>> = {
       estado: "Aprobada",
       label: "Proyecto aprobado",
       variant: "primary",
-      question:
-        "¿El cliente aprobó formalmente este proyecto? Se generará una solicitud de materiales para el área de Compras.",
+      question: "¿El cliente aprobó formalmente este proyecto y la cotización vigente?",
+      requiredArea: "comercial",
     },
     {
       estado: "Rechazada",
       label: "Cancelar proyecto",
       variant: "danger",
       question: "¿Confirmar cancelación del proyecto? Esta acción es definitiva.",
+      requiredArea: "comercial",
     },
   ],
   Aprobada: [
     {
       estado: "En producción",
-      label: "Iniciar producción →",
+      label: "Generar orden de producción →",
       variant: "primary",
-      question: "¿Iniciar la fase de producción de este proyecto?",
+      question:
+        "¿Generar la orden de producción para este proyecto? Esto formaliza el inicio de fabricación.",
+      requiredArea: "administrativa",
     },
   ],
   "En producción": [
@@ -122,7 +128,8 @@ const MILESTONE_ACCIONES: Partial<Record<string, MilestoneAction[]>> = {
       estado: "Entregado",
       label: "Marcar como entregado",
       variant: "primary",
-      question: "¿El proyecto fue entregado satisfactoriamente al cliente?",
+      question: "¿El proyecto fue entregado e instalado satisfactoriamente al cliente?",
+      requiredArea: "produccion",
     },
   ],
   Entregado: [
@@ -131,6 +138,7 @@ const MILESTONE_ACCIONES: Partial<Record<string, MilestoneAction[]>> = {
       label: "Activar garantía",
       variant: "secondary",
       question: "¿Activar el período de garantía para este proyecto?",
+      requiredArea: "comercial",
     },
   ],
   "En garantía": [
@@ -138,7 +146,8 @@ const MILESTONE_ACCIONES: Partial<Record<string, MilestoneAction[]>> = {
       estado: "Entregado",
       label: "Cerrar garantía",
       variant: "secondary",
-      question: "¿El período de garantía ha concluido?",
+      question: "¿El período de garantía ha concluido satisfactoriamente?",
+      requiredArea: "comercial",
     },
   ],
 };
@@ -276,7 +285,11 @@ function ProyectoDetalleInner({ proyecto }: { proyecto: Proyecto }) {
         <span className="ml-auto flex items-center gap-2">
           <EstadoBadge estado={proyecto.estado} />
           {puedeEditar && (
-            <MilestoneButtons estadoActual={proyecto.estado} onAction={setConfirmMilestone} />
+            <MilestoneButtons
+              estadoActual={proyecto.estado}
+              onAction={setConfirmMilestone}
+              usuario={usuario}
+            />
           )}
         </span>
       </div>
@@ -380,11 +393,18 @@ function TabBtn({
 function MilestoneButtons({
   estadoActual,
   onAction,
+  usuario,
 }: {
   estadoActual: EstadoProyecto;
   onAction: (action: MilestoneAction) => void;
+  usuario: UsuarioPublico | undefined;
 }) {
-  const botones = MILESTONE_ACCIONES[estadoActual] ?? [];
+  const botones = (MILESTONE_ACCIONES[estadoActual] ?? []).filter(
+    (btn) =>
+      !btn.requiredArea ||
+      usuario?.esAdmin ||
+      usuario?.areas.includes(btn.requiredArea as never),
+  );
   if (!botones.length) return null;
 
   return (

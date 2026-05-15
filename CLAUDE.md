@@ -55,7 +55,7 @@ Five épicas, each a namespace of types exported from `src/lib/store.ts`:
 - **Produccion:** `EtapaProduccion`, `EntregaProduccion`
 - **Postventa:** `SolicitudGarantia`, `OrdenGarantia`
 
-`EstadoProyecto` transitions are machine-enforced via `TRANSICIONES`. Changing estado to `"Aprobada"` auto-generates a `SolicitudCompra`.
+`EstadoProyecto` transitions are machine-enforced via `TRANSICIONES`. See the Business Domain section for who can trigger each transition and the rules around `SolicitudCompra` auto-generation.
 
 ### UI Components
 
@@ -73,6 +73,58 @@ Toast notifications: Sonner (`toast.success` / `toast.error`), mounted in `__roo
 ### Deployment
 
 Cloudflare Workers via `@cloudflare/vite-plugin`. Config in `wrangler.jsonc`. `npm run build` outputs a Cloudflare-compatible bundle.
+
+---
+
+## Business Domain — Process & Permissions
+
+### Area responsibilities (from BPMN As-Is + Product Backlog)
+
+| Area | Responsabilidad principal |
+|---|---|
+| **Comercial** | Atención al cliente, asesoría en diseño, especificaciones, cotizaciones, cambios durante ejecución, garantías |
+| **Compras** | Cotización y compra de materiales, gestión de proveedores, inventario, solicitudes y órdenes de compra |
+| **Administrativa** | Facturación, registro de pedidos, generación de orden de producción, seguimiento de costos, recursos de transporte |
+| **Producción** | Fabricación por etapas, control de materiales consumidos, entrega e instalación |
+
+All users can **read** everything. Each user can only **write** in their assigned area. Admins (socios) can write in all areas.
+
+### Project lifecycle — who triggers each transition
+
+| Transition | Triggered by | Notes |
+|---|---|---|
+| → **En definición** | Auto (on project creation) | Starting state for all new projects |
+| En definición → **En cotización** | Comercial | Specs ready to quote |
+| En cotización → **Aprobada** | Comercial | Client formally approved the project and current quote |
+| En cotización → **Rechazada** | Comercial | Client rejected / project cancelled |
+| Aprobada → **En producción** | **Administrativa** | Administrativa generates OrdenProduccion — this formalizes production start |
+| En producción → **Entregado** | **Producción** | Delivery checklist completed |
+| Entregado → **En garantía** | Comercial | Client reports a warranty issue |
+| En garantía → **Entregado** | Comercial | Warranty resolved |
+
+**Key rule (HU-3.1):** An `OrdenProduccion` can only be generated when the project is in `"Aprobada"` state. Generating it moves the project to `"En producción"`. Only Administrativa and Admin can do this.
+
+### SolicitudCompra auto-generation (HU-2.3)
+
+A `SolicitudCompra` is created automatically when Comercial marks a project as `"Aprobada"` **if any cotización item has insufficient stock**. The request specifies which materials are missing and in what quantity. This is currently implemented as an unconditional creation on "Aprobada" — Phase 3 (Compras) will refine this to check actual stock levels.
+
+### Cotizaciones (HU-1.4)
+
+Each project can have multiple cotizaciones (versioned). The latest is the "vigente". Items are free-text `{ descripcion, cantidad, precioUnitario, precioTotal }`. The total is `sum(items.precioTotal) * (1 + margenPct/100)`.
+
+### Especificaciones (HU-1.3)
+
+Versioned free-form text. Each save creates a new version; previous versions are kept in history. The latest version is shown in the Resumen tab.
+
+### Main pain points the system addresses (from BPMN friction map)
+
+| Pain point | Friction | Solution |
+|---|---|---|
+| Especificaciones sin formato → errores en producción | 5 | Structured spec field, versioned |
+| Cotización por intuición sin histórico | 5 | Structured quotes with item history + autocomplete |
+| Registro manual en Excel sin integración | 4 | Centralized DB, visible to all areas |
+| Cambios verbales sin trazabilidad | 4 | CambiosProyecto with date + cost + time impact |
+| Comunicación por WhatsApp | 4 | State-based visibility per area |
 
 ---
 
