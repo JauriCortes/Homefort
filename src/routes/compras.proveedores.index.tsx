@@ -11,6 +11,7 @@ import {
   useEliminarProveedor,
   type Proveedor,
 } from "@/hooks/api/use-compras";
+import { ApiError } from "@/lib/api-client";
 import { PageHeader, EmptyState, ErrorBanner } from "@/components/ui-bits";
 import { Button, Field, TextInput } from "@/components/form-bits";
 
@@ -57,7 +58,12 @@ function ProveedoresList() {
     setDeleteError(null);
     eliminarProveedor.mutate(confirmDelete.id, {
       onSuccess: () => { setConfirmDelete(null); setDeleteError(null); toast.success("Proveedor eliminado."); },
-      onError: (err) => setDeleteError(err.message || "No se pudo eliminar. Intenta nuevamente."),
+      onError: (err) => {
+        const msg = err instanceof ApiError
+          ? `Error ${err.status}: ${err.message || "sin detalle"}`
+          : String(err);
+        setDeleteError(msg);
+      },
     });
   };
 
