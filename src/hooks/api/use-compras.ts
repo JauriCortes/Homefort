@@ -178,3 +178,11 @@ export function useActualizarOrdenCompra() {
     onSuccess: () => qc.invalidateQueries({ queryKey: comprasKeys.ordenes.all() }),
   });
 }
+
+export function useEliminarOrdenCompra() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.delete(`/compras/ordenes/${id}`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: comprasKeys.ordenes.all() }),
+  });
+}

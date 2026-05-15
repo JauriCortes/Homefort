@@ -237,4 +237,21 @@ compras.patch("/ordenes/:id", requireAuth, requireArea("compras"), async (c) => 
   return c.json({ ...updated, items: JSON.parse(updated.items) });
 });
 
+compras.delete("/ordenes/:id", requireAuth, requireArea("compras"), async (c) => {
+  const db = drizzle(c.env.DB);
+  const id = c.req.param("id");
+  try {
+    // Nullificar referencia opcional en solicitudes de compra
+    await db
+      .update(solicitudesCompra)
+      .set({ ordenCompraId: null })
+      .where(eq(solicitudesCompra.ordenCompraId, id));
+    await db.delete(ordenesCompra).where(eq(ordenesCompra.id, id));
+    return c.json({ ok: true });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Error al eliminar orden";
+    return c.json({ error: msg }, 500);
+  }
+});
+
 export { compras as comprasRoutes };
