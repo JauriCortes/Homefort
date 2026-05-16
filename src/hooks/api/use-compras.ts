@@ -79,6 +79,18 @@ export function useMateriales() {
   });
 }
 
+export function useCrearMaterial() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: { nombre: string; categoria?: string; unidad?: string; costoUnitario?: number }) =>
+      api.post<Material>("/compras/materiales", data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: comprasKeys.materiales.all() });
+      qc.invalidateQueries({ queryKey: comprasKeys.stock.all() });
+    },
+  });
+}
+
 export function useStock() {
   return useQuery({
     queryKey: comprasKeys.stock.all(),

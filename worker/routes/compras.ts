@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { drizzle } from "drizzle-orm/d1";
-import { eq, asc, desc } from "drizzle-orm";
+import { eq, asc, desc, like } from "drizzle-orm";
 import {
   materialesBase,
   proveedores,
@@ -23,6 +23,29 @@ compras.get("/materiales", requireAuth, async (c) => {
   const db = drizzle(c.env.DB);
   const lista = await db.select().from(materialesBase).orderBy(asc(materialesBase.nombre));
   return c.json(lista);
+});
+
+compras.post("/materiales", requireAuth, requireArea("compras"), async (c) => {
+  const body = await c.req.json();
+  if (!body.nombre?.trim()) return c.json({ error: "Nombre requerido" }, 400);
+  const db = drizzle(c.env.DB);
+  // Idempotente: si ya existe por nombre (case-insensitive), retorna el existente
+  const [existente] = await db
+    .select()
+    .from(materialesBase)
+    .where(like(materialesBase.nombre, body.nombre.trim()))
+    .limit(1);
+  if (existente) return c.json(existente);
+  const mat = {
+    id: nuevoId("mat"),
+    nombre: body.nombre.trim(),
+    categoria: body.categoria?.trim() || "general",
+    unidad: body.unidad?.trim() || "unidad",
+    costoUnitario: Number(body.costoUnitario) || 0,
+    actualizadoEn: new Date().toISOString().slice(0, 10),
+  };
+  await db.insert(materialesBase).values(mat);
+  return c.json(mat, 201);
 });
 
 // ── Stock (materiales + cantidades calculadas) ────────────────────────────────

@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState, useRef } from "react";
-import { Plus, Trash2, AlertTriangle } from "lucide-react";
+import { Plus, Trash2 } from "lucide-react";
 import { formatCOP } from "@/lib/store";
 import { useMe } from "@/hooks/api/use-auth";
 import {
@@ -249,52 +249,55 @@ function InventarioPage() {
         </form>
       )}
 
-      {/* Tabla de stock */}
-      <div className="overflow-hidden rounded-lg border border-border bg-surface">
-        <table className="w-full text-sm">
-          <thead className="bg-muted/50 text-xs uppercase tracking-wide text-muted-foreground">
-            <tr>
-              <th className="px-3 py-2 text-left font-medium">Material</th>
-              <th className="px-3 py-2 text-left font-medium">Categoría</th>
-              <th className="px-3 py-2 text-left font-medium">Unidad</th>
-              <th className="px-3 py-2 text-right font-medium">Disponible</th>
-              <th className="px-3 py-2 text-right font-medium">Bloqueado</th>
-              <th className="px-3 py-2 text-right font-medium">Consumido</th>
-              <th className="px-3 py-2 text-right font-medium">Costo unit.</th>
-            </tr>
-          </thead>
-          <tbody>
-            {stocks.length === 0 ? (
-              <tr>
-                <td colSpan={7} className="px-3 py-8 text-center text-sm text-muted-foreground">
-                  No hay materiales registrados.
-                </td>
-              </tr>
-            ) : (
-              stocks.map((m) => (
-                <tr key={m.id} className="border-t border-border">
-                  <td className="px-3 py-2 font-medium">
-                    <div className="flex items-center gap-1">
-                      {m.disponible <= 0 && (
-                        <AlertTriangle className="h-3.5 w-3.5 text-warning-foreground" />
-                      )}
-                      {m.nombre}
-                    </div>
-                  </td>
-                  <td className="px-3 py-2 text-muted-foreground">{m.categoria}</td>
-                  <td className="px-3 py-2 text-muted-foreground">{m.unidad}</td>
-                  <td className={`px-3 py-2 text-right tabular-nums font-medium ${m.disponible <= 0 ? "text-destructive" : "text-success"}`}>
-                    {m.disponible}
-                  </td>
-                  <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">{m.bloqueado}</td>
-                  <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">{m.consumido}</td>
-                  <td className="px-3 py-2 text-right tabular-nums">{formatCOP(m.costoUnitario)}</td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
+      {stocks.length === 0 ? (
+        <p className="py-8 text-center text-sm text-muted-foreground">
+          No hay materiales registrados. Se crean automáticamente al recibir órdenes de compra.
+        </p>
+      ) : (
+        <div className="space-y-6">
+          {[
+            { label: "En stock", items: stocks.filter((m) => m.disponible > 0), underline: "border-green-500" },
+            { label: "Sin existencias", items: stocks.filter((m) => m.disponible <= 0), underline: "border-border" },
+          ].map(({ label, items, underline }) => {
+            if (items.length === 0) return null;
+            return (
+              <section key={label}>
+                <h3 className={`mb-3 border-b-2 pb-1 text-sm font-semibold ${underline}`}>{label}</h3>
+                <div className="overflow-hidden rounded-lg border border-border bg-surface">
+                  <table className="w-full text-sm">
+                    <thead className="bg-muted/50 text-xs uppercase tracking-wide text-muted-foreground">
+                      <tr>
+                        <th className="px-3 py-2 text-left font-medium">Material</th>
+                        <th className="px-3 py-2 text-left font-medium">Categoría</th>
+                        <th className="px-3 py-2 text-left font-medium">Unidad</th>
+                        <th className="px-3 py-2 text-right font-medium">Disponible</th>
+                        <th className="px-3 py-2 text-right font-medium">Bloqueado</th>
+                        <th className="px-3 py-2 text-right font-medium">Consumido</th>
+                        <th className="px-3 py-2 text-right font-medium">Costo unit.</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {items.map((m) => (
+                        <tr key={m.id} className="border-t border-border">
+                          <td className="px-3 py-2 font-medium">{m.nombre}</td>
+                          <td className="px-3 py-2 text-muted-foreground">{m.categoria}</td>
+                          <td className="px-3 py-2 text-muted-foreground">{m.unidad}</td>
+                          <td className={`px-3 py-2 text-right tabular-nums font-medium ${m.disponible <= 0 ? "text-destructive" : "text-success"}`}>
+                            {m.disponible}
+                          </td>
+                          <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">{m.bloqueado}</td>
+                          <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">{m.consumido}</td>
+                          <td className="px-3 py-2 text-right tabular-nums">{formatCOP(m.costoUnitario)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

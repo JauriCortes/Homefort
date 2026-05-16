@@ -10,6 +10,7 @@ import { ApiError } from "@/lib/api-client";
 import {
   useProveedores,
   useMateriales,
+  useCrearMaterial,
   useOrdenesCompra,
   useCrearOrdenCompra,
   useActualizarOrdenCompra,
@@ -264,6 +265,7 @@ function OrdenesCompraPage() {
   const crearOrden = useCrearOrdenCompra();
   const actualizarOrden = useActualizarOrdenCompra();
   const eliminarOrden = useEliminarOrdenCompra();
+  const crearMaterial = useCrearMaterial();
   const registrarMovimiento = useRegistrarMovimiento();
 
   const [showForm, setShowForm] = useState(false);
@@ -357,15 +359,31 @@ function OrdenesCompraPage() {
     setTransicionError(null);
     setTransicionando(true);
 
-    // Si se recibe la orden, registrar entradas en inventario para ítems con materialId
-    if (nuevoEstado === "recibida") {
-      const itemsConMaterial = orden.items.filter((i) => i.materialId !== null);
+    if (nuevoEstado === "recibida" && orden.items.length > 0) {
+      // Mapa nombre → id con los materiales ya conocidos
+      const materialMap = new Map<string, string>(
+        materiales.map((m) => [m.nombre.toLowerCase(), m.id]),
+      );
       try {
-        for (const item of itemsConMaterial) {
+        for (const item of orden.items) {
+          const nombreNorm = item.descripcion.trim().toLowerCase();
+          // Buscar o crear el material
+          let materialId = materialMap.get(nombreNorm);
+          if (!materialId) {
+            const nuevo = await new Promise<Material>((resolve, reject) =>
+              crearMaterial.mutate(
+                { nombre: item.descripcion.trim(), categoria: "general", unidad: "unidad", costoUnitario: item.precioUnitario },
+                { onSuccess: resolve, onError: reject },
+              ),
+            );
+            materialId = nuevo.id;
+            materialMap.set(nombreNorm, materialId);
+          }
+          // Registrar entrada
           await new Promise<void>((resolve, reject) =>
             registrarMovimiento.mutate(
               {
-                materialId: item.materialId!,
+                materialId,
                 tipo: "entrada",
                 cantidad: item.cantidad,
                 fecha: new Date().toISOString().slice(0, 10),
@@ -378,7 +396,7 @@ function OrdenesCompraPage() {
           );
         }
       } catch {
-        setTransicionError("Error al registrar entradas en inventario. Intenta nuevamente.");
+        setTransicionError("Error al registrar en inventario. Intenta nuevamente.");
         setTransicionando(false);
         return;
       }
@@ -596,39 +614,21 @@ function OrdenesCompraPage() {
                 <p className="mt-2 text-sm text-muted-foreground">
                   La orden <strong>{pendingTransicion.orden.codigo}</strong> se marcará como recibida.
                 </p>
-                {(() => {
-                  const conMaterial = pendingTransicion.orden.items.filter((i) => i.materialId !== null);
-                  const sinMaterial = pendingTransicion.orden.items.filter((i) => i.materialId === null);
-                  return (
-                    <div className="mt-3 space-y-2">
-                      {conMaterial.length > 0 && (
-                        <div>
-                          <p className="text-xs font-medium text-green-600">Se agregarán al inventario:</p>
-                          <ul className="mt-1 space-y-0.5">
-                            {conMaterial.map((item, i) => (
-                              <li key={i} className="text-xs text-muted-foreground">
-                                • {item.descripcion} ({item.cantidad} unidades)
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                      )}
-                      {sinMaterial.length > 0 && (
-                        <div>
-                          <p className="text-xs font-medium text-muted-foreground">Sin entrada en inventario (no están en el catálogo):</p>
-                          <ul className="mt-1 space-y-0.5">
-                            {sinMaterial.map((item, i) => (
-                              <li key={i} className="text-xs text-muted-foreground">• {item.descripcion}</li>
-                            ))}
-                          </ul>
-                        </div>
-                      )}
-                      {pendingTransicion.orden.items.length === 0 && (
-                        <p className="text-xs text-muted-foreground">Esta orden no tiene ítems — no se registrará nada en inventario.</p>
-                      )}
-                    </div>
-                  );
-                })()}
+                {pendingTransicion.orden.items.length > 0 ? (
+                  <div className="mt-3">
+                    <p className="text-xs font-medium text-green-600">Se registrarán en inventario:</p>
+                    <ul className="mt-1 space-y-0.5">
+                      {pendingTransicion.orden.items.map((item, i) => (
+                        <li key={i} className="text-xs text-muted-foreground">
+                          • {item.descripcion} — {item.cantidad} {materiales.find((m) => m.id === item.materialId)?.unidad ?? "unidades"}
+                          {!item.materialId && <span className="ml-1 text-muted-foreground/60">(nuevo)</span>}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : (
+                  <p className="mt-2 text-xs text-muted-foreground">Esta orden no tiene ítems — no se registrará nada en inventario.</p>
+                )}
               </>
             )}
             {transicionError && <p className="mt-2 rounded bg-destructive/10 px-3 py-2 text-xs text-destructive">{transicionError}</p>}
