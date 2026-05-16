@@ -9,7 +9,7 @@ import { useProyectos } from "@/hooks/api/use-comercial";
 import { ApiError } from "@/lib/api-client";
 import {
   useProveedores,
-  useMateriales,
+  useStock,
   useCrearMaterial,
   useOrdenesCompra,
   useCrearOrdenCompra,
@@ -18,6 +18,7 @@ import {
   useRegistrarMovimiento,
   type OrdenCompra,
   type Material,
+  type MaterialConStock,
 } from "@/hooks/api/use-compras";
 import { PageHeader, EmptyState, SuccessBanner, ErrorBanner } from "@/components/ui-bits";
 import { Button, Field, TextInput, Select } from "@/components/form-bits";
@@ -57,7 +58,7 @@ function crearFila(): FilaItem {
   return { materialNombre: "", cantidad: "", precioUnitario: "" };
 }
 
-function resolverItems(filas: FilaItem[], materiales: Material[]) {
+function resolverItems(filas: FilaItem[], materiales: MaterialConStock[]) {
   return filas
     .filter((f) => f.materialNombre.trim() && f.cantidad)
     .map((f) => {
@@ -81,14 +82,14 @@ function MaterialAutocomplete({
   onChange,
 }: {
   value: string;
-  materiales: Material[];
+  materiales: MaterialConStock[];
   onChange: (nombre: string) => void;
 }) {
   const [open, setOpen] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
-  const filtradas = materiales.filter(
-    (m) => value.trim() && m.nombre.toLowerCase().includes(value.trim().toLowerCase()),
-  );
+  const filtradas = value.trim()
+    ? materiales.filter((m) => m.nombre.toLowerCase().includes(value.trim().toLowerCase()))
+    : materiales.slice(0, 8);
   return (
     <div className="relative w-full">
       <input
@@ -167,7 +168,7 @@ function ItemsTable({
   onRemove,
 }: {
   filas: FilaItem[];
-  materiales: Material[];
+  materiales: MaterialConStock[];
   onChange: (i: number, patch: Partial<FilaItem>) => void;
   onAdd: () => void;
   onRemove: (i: number) => void;
@@ -261,7 +262,7 @@ function OrdenesCompraPage() {
   const { data: ordenes = [] } = useOrdenesCompra();
   const { data: proyectos = [] } = useProyectos();
   const { data: proveedores = [] } = useProveedores();
-  const { data: materiales = [] } = useMateriales();
+  const { data: materiales = [] } = useStock();
   const crearOrden = useCrearOrdenCompra();
   const actualizarOrden = useActualizarOrdenCompra();
   const eliminarOrden = useEliminarOrdenCompra();
