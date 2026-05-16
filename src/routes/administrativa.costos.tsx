@@ -52,7 +52,7 @@ function CostosPage() {
             </Select>
           </Field>
           <Field label="Concepto" required><TextInput value={form.concepto} onChange={(e) => setForm({ ...form, concepto: e.target.value })} /></Field>
-          <Field label="Monto (COP)" required><TextInput type="number" value={form.monto || ""} onChange={(e) => setForm({ ...form, monto: Number(e.target.value) })} /></Field>
+          <Field label="Monto (COP)" required><TextInput type="number" min={0} step="1" value={form.monto || ""} onChange={(e) => setForm({ ...form, monto: Number(e.target.value) })} /></Field>
           <div className="flex justify-end gap-2">
             <Button variant="secondary" type="button" onClick={() => setShowForm(false)}>Cancelar</Button>
             <Button type="submit">Guardar ajuste</Button>

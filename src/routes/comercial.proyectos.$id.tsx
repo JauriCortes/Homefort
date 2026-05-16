@@ -910,6 +910,7 @@ function CotizacionesTab({
               <TextInput
                 type="number"
                 min={0}
+                step="1"
                 value={form.margenPct}
                 onChange={(e) => setForm({ ...form, margenPct: Number(e.target.value) })}
               />
@@ -1173,6 +1174,8 @@ function CambiosTab({ proyectoId, puedeEditar }: { proyectoId: string; puedeEdit
             <Field label="Impacto en costo (COP)" hint="Usa 0 si no aplica.">
               <TextInput
                 type="number"
+                min={0}
+                step="1"
                 value={form.impactoCosto}
                 onChange={(e) => setForm({ ...form, impactoCosto: Number(e.target.value) })}
               />
@@ -1180,6 +1183,8 @@ function CambiosTab({ proyectoId, puedeEditar }: { proyectoId: string; puedeEdit
             <Field label="Impacto en tiempo (días)" hint="Usa 0 si no aplica.">
               <TextInput
                 type="number"
+                min={0}
+                step="1"
                 value={form.impactoDias}
                 onChange={(e) => setForm({ ...form, impactoDias: Number(e.target.value) })}
               />
