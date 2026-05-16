@@ -86,12 +86,23 @@ function MaterialAutocomplete({
   onChange: (nombre: string) => void;
 }) {
   const [open, setOpen] = useState(false);
+  const [pos, setPos] = useState({ top: 0, left: 0, width: 0 });
   const inputRef = useRef<HTMLInputElement>(null);
+
   const filtradas = value.trim()
     ? materiales.filter((m) => m.nombre.toLowerCase().includes(value.trim().toLowerCase()))
     : materiales.slice(0, 8);
+
+  const handleFocus = () => {
+    if (inputRef.current) {
+      const r = inputRef.current.getBoundingClientRect();
+      setPos({ top: r.bottom, left: r.left, width: Math.max(r.width, 208) });
+    }
+    setOpen(true);
+  };
+
   return (
-    <div className="relative w-full">
+    <div className="w-full">
       <input
         ref={inputRef}
         type="text"
@@ -99,11 +110,14 @@ function MaterialAutocomplete({
         placeholder="Material o descripción…"
         className="w-full rounded border border-border bg-transparent px-2 py-1.5 text-sm outline-none focus:border-ring focus:ring-1 focus:ring-ring/30"
         onChange={(e) => { onChange(e.target.value); setOpen(true); }}
-        onFocus={() => setOpen(true)}
+        onFocus={handleFocus}
         onBlur={() => setTimeout(() => setOpen(false), 120)}
       />
-      {open && filtradas.length > 0 && (
-        <ul className="absolute left-0 top-full z-20 mt-0.5 max-h-40 w-52 overflow-y-auto rounded-md border border-border bg-surface text-sm shadow-md">
+      {open && filtradas.length > 0 && createPortal(
+        <ul
+          style={{ position: "fixed", top: pos.top, left: pos.left, width: pos.width, zIndex: 9999 }}
+          className="max-h-40 overflow-y-auto rounded-md border border-border bg-surface text-sm shadow-md"
+        >
           {filtradas.map((m) => (
             <li
               key={m.id}
@@ -114,7 +128,8 @@ function MaterialAutocomplete({
               <span className="ml-2 text-xs text-muted-foreground">{m.unidad}</span>
             </li>
           ))}
-        </ul>
+        </ul>,
+        document.body,
       )}
     </div>
   );
