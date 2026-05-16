@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState, useRef } from "react";
 import { createPortal } from "react-dom";
-import { Plus, Trash2, SlidersHorizontal } from "lucide-react";
+import { Plus, Trash2, SlidersHorizontal, Check, X } from "lucide-react";
 import { formatCOP } from "@/lib/store";
 import { useMe } from "@/hooks/api/use-auth";
 import {
@@ -12,13 +12,12 @@ import {
   type MaterialConStock,
 } from "@/hooks/api/use-compras";
 import { PageHeader, ErrorBanner, SuccessBanner } from "@/components/ui-bits";
-import { Button, Field, TextInput } from "@/components/form-bits";
+import { Button } from "@/components/form-bits";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/compras/inventario")({
   component: InventarioPage,
 });
-
-type TipoMovimiento = "entrada" | "bloqueo" | "consumo" | "ajuste";
 
 interface FilaEntrada {
   materialNombre: string;
@@ -90,12 +89,24 @@ function MaterialAutocomplete({
   );
 }
 
-const TIPO_LABELS: Record<TipoMovimiento, string> = {
-  entrada: "Entrada — suma a disponible",
-  ajuste: "Ajuste — suma/resta a disponible",
-  bloqueo: "Bloqueo — reserva para un proyecto",
-  consumo: "Consumo — marca como usado",
-};
+function StockInput({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+}) {
+  return (
+    <input
+      type="number"
+      min={0}
+      step="0.01"
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      className="w-20 rounded border border-ring bg-transparent px-2 py-0.5 text-right text-sm tabular-nums outline-none focus:ring-1 focus:ring-ring/30"
+    />
+  );
+}
 
 function InventarioPage() {
   const { data: usuario } = useMe();
@@ -104,21 +115,16 @@ function InventarioPage() {
   const crearMaterial = useCrearMaterial();
   const registrar = useRegistrarMovimiento();
 
-  // Form registrar entradas
   const [showForm, setShowForm] = useState(false);
   const [filas, setFilas] = useState<FilaEntrada[]>([crearFila()]);
   const [error, setError] = useState<string | null>(null);
   const [ok, setOk] = useState<string | null>(null);
 
-  // Modal ajuste por material
-  const [ajustando, setAjustando] = useState<MaterialConStock | null>(null);
-  const [ajusteForm, setAjusteForm] = useState<{ tipo: TipoMovimiento; cantidad: string; notas: string }>({
-    tipo: "entrada",
-    cantidad: "",
-    notas: "",
-  });
-  const [ajusteError, setAjusteError] = useState<string | null>(null);
-  const [ajustePending, setAjustePending] = useState(false);
+  // Inline stock editing
+  const [editandoId, setEditandoId] = useState<string | null>(null);
+  const [editValues, setEditValues] = useState({ disponible: "", bloqueado: "", consumido: "" });
+  const [editError, setEditError] = useState<string | null>(null);
+  const [guardando, setGuardando] = useState(false);
 
   const puedeEditar = (usuario?.esAdmin || usuario?.areas.includes("compras")) ?? false;
 
@@ -174,40 +180,62 @@ function InventarioPage() {
     }
   };
 
-  const abrirAjuste = (m: MaterialConStock) => {
-    setAjustando(m);
-    setAjusteForm({ tipo: "entrada", cantidad: "", notas: "" });
-    setAjusteError(null);
+  const abrirEdicion = (m: MaterialConStock) => {
+    setEditandoId(m.id);
+    setEditValues({
+      disponible: String(m.disponible),
+      bloqueado: String(m.bloqueado),
+      consumido: String(m.consumido),
+    });
+    setEditError(null);
   };
 
-  const confirmarAjuste = async () => {
-    if (!ajustando) return;
-    if (!ajusteForm.cantidad || Number(ajusteForm.cantidad) <= 0) {
-      setAjusteError("La cantidad debe ser mayor a 0.");
+  const guardarEdicion = async (m: MaterialConStock) => {
+    const newDisponible = parseFloat(editValues.disponible) || 0;
+    const newBloqueado = parseFloat(editValues.bloqueado) || 0;
+    const newConsumido = parseFloat(editValues.consumido) || 0;
+
+    if (newDisponible < 0 || newBloqueado < 0 || newConsumido < 0) {
+      setEditError("Los valores no pueden ser negativos.");
       return;
     }
-    setAjusteError(null);
-    setAjustePending(true);
-    await new Promise<void>((resolve, reject) =>
-      registrar.mutate(
-        {
-          materialId: ajustando.id,
-          tipo: ajusteForm.tipo,
-          cantidad: Number(ajusteForm.cantidad),
-          fecha: new Date().toISOString().slice(0, 10),
-          proveedorId: null,
-          proyectoId: null,
-          notas: ajusteForm.notas || null,
-        },
-        { onSuccess: () => resolve(), onError: reject },
-      ),
-    ).catch(() => setAjusteError("No se pudo registrar el movimiento."));
-    setAjustePending(false);
-    if (!ajusteError) {
-      setAjustando(null);
-      setOk(`Movimiento registrado para ${ajustando.nombre}.`);
-      setTimeout(() => setOk(null), 3000);
+
+    const movimientos: { tipo: "ajuste" | "bloqueo" | "consumo"; cantidad: number }[] = [];
+    const dDisponible = newDisponible - m.disponible;
+    const dBloqueado = newBloqueado - m.bloqueado;
+    const dConsumido = newConsumido - m.consumido;
+
+    if (dDisponible !== 0) movimientos.push({ tipo: "ajuste", cantidad: dDisponible });
+    if (dBloqueado !== 0) movimientos.push({ tipo: "bloqueo", cantidad: dBloqueado });
+    if (dConsumido !== 0) movimientos.push({ tipo: "consumo", cantidad: dConsumido });
+
+    if (!movimientos.length) { setEditandoId(null); return; }
+
+    setGuardando(true);
+    setEditError(null);
+    try {
+      for (const mov of movimientos) {
+        await new Promise<void>((resolve, reject) =>
+          registrar.mutate(
+            {
+              materialId: m.id,
+              tipo: mov.tipo,
+              cantidad: mov.cantidad,
+              fecha: new Date().toISOString().slice(0, 10),
+              proveedorId: null,
+              proyectoId: null,
+              notas: "Ajuste manual",
+            },
+            { onSuccess: () => resolve(), onError: reject },
+          ),
+        );
+      }
+      setEditandoId(null);
+      toast.success("Stock actualizado.");
+    } catch {
+      setEditError("No se pudo guardar. Intenta nuevamente.");
     }
+    setGuardando(false);
   };
 
   return (
@@ -341,34 +369,79 @@ function InventarioPage() {
                         <th className="px-3 py-2 text-right font-medium">Bloqueado</th>
                         <th className="px-3 py-2 text-right font-medium">Consumido</th>
                         <th className="px-3 py-2 text-right font-medium">Costo unit.</th>
-                        {puedeEditar && <th className="px-3 py-2 w-10" />}
+                        {puedeEditar && <th className="px-3 py-2 w-16" />}
                       </tr>
                     </thead>
                     <tbody>
-                      {items.map((m) => (
-                        <tr key={m.id} className="border-t border-border">
-                          <td className="px-3 py-2 font-medium">{m.nombre}</td>
-                          <td className="px-3 py-2 text-muted-foreground">{m.categoria}</td>
-                          <td className="px-3 py-2 text-muted-foreground">{m.unidad}</td>
-                          <td className={`px-3 py-2 text-right tabular-nums font-medium ${m.disponible <= 0 ? "text-destructive" : "text-success"}`}>
-                            {m.disponible}
-                          </td>
-                          <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">{m.bloqueado}</td>
-                          <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">{m.consumido}</td>
-                          <td className="px-3 py-2 text-right tabular-nums">{formatCOP(m.costoUnitario)}</td>
-                          {puedeEditar && (
-                            <td className="px-3 py-2">
-                              <button
-                                onClick={() => abrirAjuste(m)}
-                                className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
-                                title="Registrar movimiento"
-                              >
-                                <SlidersHorizontal className="h-3.5 w-3.5" />
-                              </button>
+                      {items.map((m) => {
+                        const editando = editandoId === m.id;
+                        return (
+                          <tr key={m.id} className={`border-t border-border ${editando ? "bg-muted/30" : ""}`}>
+                            <td className="px-3 py-2 font-medium">{m.nombre}</td>
+                            <td className="px-3 py-2 text-muted-foreground">{m.categoria}</td>
+                            <td className="px-3 py-2 text-muted-foreground">{m.unidad}</td>
+                            <td className="px-3 py-2 text-right">
+                              {editando ? (
+                                <StockInput value={editValues.disponible} onChange={(v) => setEditValues((p) => ({ ...p, disponible: v }))} />
+                              ) : (
+                                <span className={`tabular-nums font-medium ${m.disponible <= 0 ? "text-destructive" : "text-success"}`}>{m.disponible}</span>
+                              )}
                             </td>
-                          )}
-                        </tr>
-                      ))}
+                            <td className="px-3 py-2 text-right">
+                              {editando ? (
+                                <StockInput value={editValues.bloqueado} onChange={(v) => setEditValues((p) => ({ ...p, bloqueado: v }))} />
+                              ) : (
+                                <span className="tabular-nums text-muted-foreground">{m.bloqueado}</span>
+                              )}
+                            </td>
+                            <td className="px-3 py-2 text-right">
+                              {editando ? (
+                                <StockInput value={editValues.consumido} onChange={(v) => setEditValues((p) => ({ ...p, consumido: v }))} />
+                              ) : (
+                                <span className="tabular-nums text-muted-foreground">{m.consumido}</span>
+                              )}
+                            </td>
+                            <td className="px-3 py-2 text-right tabular-nums">{formatCOP(m.costoUnitario)}</td>
+                            {puedeEditar && (
+                              <td className="px-3 py-2">
+                                {editando ? (
+                                  <div className="flex items-center justify-end gap-1">
+                                    {editError && createPortal(
+                                      <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-[300] rounded-md bg-destructive px-4 py-2 text-xs text-destructive-foreground shadow-lg">
+                                        {editError}
+                                      </div>,
+                                      document.body,
+                                    )}
+                                    <button
+                                      onClick={() => guardarEdicion(m)}
+                                      disabled={guardando}
+                                      className="rounded p-1 text-green-600 hover:bg-muted"
+                                      title="Guardar"
+                                    >
+                                      <Check className="h-3.5 w-3.5" />
+                                    </button>
+                                    <button
+                                      onClick={() => setEditandoId(null)}
+                                      className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-destructive"
+                                      title="Cancelar"
+                                    >
+                                      <X className="h-3.5 w-3.5" />
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <button
+                                    onClick={() => abrirEdicion(m)}
+                                    className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+                                    title="Ajustar stock"
+                                  >
+                                    <SlidersHorizontal className="h-3.5 w-3.5" />
+                                  </button>
+                                )}
+                              </td>
+                            )}
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
@@ -376,59 +449,6 @@ function InventarioPage() {
             );
           })}
         </div>
-      )}
-
-      {/* Modal ajuste */}
-      {ajustando && createPortal(
-        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 p-4">
-          <div className="w-full max-w-sm rounded-lg border border-border bg-surface p-5 shadow-xl">
-            <h2 className="mb-1 text-sm font-semibold">Registrar movimiento</h2>
-            <p className="mb-4 text-xs text-muted-foreground">{ajustando.nombre}</p>
-            <div className="mb-2 flex gap-4 text-xs text-muted-foreground">
-              <span>Disponible: <strong className="text-foreground">{ajustando.disponible}</strong></span>
-              <span>Bloqueado: <strong className="text-foreground">{ajustando.bloqueado}</strong></span>
-              <span>Consumido: <strong className="text-foreground">{ajustando.consumido}</strong></span>
-            </div>
-            {ajusteError && <ErrorBanner>{ajusteError}</ErrorBanner>}
-            <div className="mt-3 space-y-3">
-              <Field label="Tipo de movimiento">
-                <select
-                  value={ajusteForm.tipo}
-                  onChange={(e) => setAjusteForm({ ...ajusteForm, tipo: e.target.value as TipoMovimiento })}
-                  className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring/30"
-                >
-                  {(Object.entries(TIPO_LABELS) as [TipoMovimiento, string][]).map(([v, label]) => (
-                    <option key={v} value={v}>{label}</option>
-                  ))}
-                </select>
-              </Field>
-              <Field label="Cantidad">
-                <TextInput
-                  type="number"
-                  min={0.01}
-                  step="0.01"
-                  placeholder="0"
-                  value={ajusteForm.cantidad}
-                  onChange={(e) => setAjusteForm({ ...ajusteForm, cantidad: e.target.value })}
-                />
-              </Field>
-              <Field label="Notas">
-                <TextInput
-                  placeholder="Opcional…"
-                  value={ajusteForm.notas}
-                  onChange={(e) => setAjusteForm({ ...ajusteForm, notas: e.target.value })}
-                />
-              </Field>
-            </div>
-            <div className="mt-4 flex justify-end gap-2">
-              <Button variant="secondary" onClick={() => setAjustando(null)}>Cancelar</Button>
-              <Button onClick={confirmarAjuste} disabled={ajustePending}>
-                {ajustePending ? "Guardando…" : "Registrar"}
-              </Button>
-            </div>
-          </div>
-        </div>,
-        document.body,
       )}
     </div>
   );

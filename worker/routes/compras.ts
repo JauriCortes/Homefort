@@ -168,7 +168,7 @@ compras.post("/movimientos", requireAuth, requireArea("compras"), async (c) => {
   const user = c.get("user");
   const body = await c.req.json();
   if (!body.materialId) return c.json({ error: "materialId requerido" }, 400);
-  if (!body.cantidad || Number(body.cantidad) <= 0)
+  if (body.cantidad === undefined || body.cantidad === null || Number(body.cantidad) === 0)
     return c.json({ error: "Cantidad inválida" }, 400);
   const db = drizzle(c.env.DB);
   const mov = {
