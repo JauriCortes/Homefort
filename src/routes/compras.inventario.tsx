@@ -100,7 +100,7 @@ function StockInput({
     <input
       type="number"
       min={0}
-      step="0.01"
+      step="1"
       value={value}
       onChange={(e) => onChange(e.target.value)}
       className="w-20 rounded border border-ring bg-transparent px-2 py-0.5 text-right text-sm tabular-nums outline-none focus:ring-1 focus:ring-ring/30"
@@ -281,8 +281,8 @@ function InventarioPage() {
                     <td className="px-2 py-1">
                       <input
                         type="number"
-                        min={0.01}
-                        step="0.01"
+                        min={0}
+                        step="1"
                         placeholder="0"
                         value={fila.cantidad}
                         onChange={(e) => setFila(i, { cantidad: e.target.value })}

@@ -60,7 +60,7 @@ function PagosPage() {
           </Field>
           {form.facturaId && <div className="text-sm text-muted-foreground">Saldo actual: {formatCOP(saldoFactura)}</div>}
           <Field label="Monto" required>
-            <TextInput type="number" min={0.01} step="0.01" value={form.monto || ""} onChange={(e) => setForm({ ...form, monto: Number(e.target.value) })} />
+            <TextInput type="number" min={0} step="1" value={form.monto || ""} onChange={(e) => setForm({ ...form, monto: Number(e.target.value) })} />
           </Field>
           <Field label="Tipo de pago" required>
             <Select value={form.tipo} onChange={(e) => setForm({ ...form, tipo: e.target.value as TipoPago })}>

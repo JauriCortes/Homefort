@@ -854,7 +854,7 @@ function CotizacionesTab({
                         <TextInput
                           type="number"
                           min={0}
-                          step="0.01"
+                          step="1"
                           value={it.cantidad || ""}
                           onChange={(e) => setItem(i, { cantidad: Number(e.target.value) })}
                           placeholder="0"

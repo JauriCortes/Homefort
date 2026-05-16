@@ -219,7 +219,6 @@ function ItemsTable({
                   </td>
                   <td className="px-2 py-1">
                     <NumericInput
-                      allowDecimals
                       value={fila.cantidad}
                       placeholder="0"
                       onChange={(v) => onChange(i, { cantidad: v })}
