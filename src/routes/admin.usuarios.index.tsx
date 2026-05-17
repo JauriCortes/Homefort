@@ -1,8 +1,8 @@
 import { createFileRoute, Link, Navigate } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { Plus, Shield, Users as UsersIcon, Search } from "lucide-react";
-import { useStore } from "@/hooks/use-store";
 import { useMe } from "@/hooks/api/use-auth";
+import { useUsuarios } from "@/hooks/api/use-admin";
 import { AREAS_LABEL } from "@/lib/store";
 import { PageHeader, EmptyState } from "@/components/ui-bits";
 import { Button, Select, TextInput } from "@/components/form-bits";
@@ -13,7 +13,7 @@ export const Route = createFileRoute("/admin/usuarios/")({
 
 function UsuariosIndex() {
   const { data: usuario } = useMe();
-  const usuarios = useStore((s) => s.usuarios);
+  const { data: usuarios = [] } = useUsuarios();
   const [q, setQ] = useState("");
   const [filtroArea, setFiltroArea] = useState<"todas" | string>("todas");
   const [verInactivos, setVerInactivos] = useState(false);
@@ -87,7 +87,6 @@ function UsuariosIndex() {
         />
       ) : (
         <div className="overflow-hidden rounded-lg border border-border bg-surface">
-          {/* Tabla en desktop */}
           <table className="hidden w-full text-sm md:table">
             <thead className="bg-muted/50 text-left text-xs uppercase tracking-wide text-muted-foreground">
               <tr>
@@ -106,10 +105,7 @@ function UsuariosIndex() {
                     <div className="flex items-center gap-2">
                       <span className="font-medium text-foreground">{u.nombre}</span>
                       {u.esAdmin && (
-                        <span
-                          title="Administrador"
-                          className="inline-flex items-center gap-1 rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold text-primary"
-                        >
+                        <span className="inline-flex items-center gap-1 rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold text-primary">
                           <Shield className="h-3 w-3" /> Admin
                         </span>
                       )}
@@ -119,10 +115,7 @@ function UsuariosIndex() {
                   <td className="px-3 py-2">
                     <div className="flex flex-wrap gap-1">
                       {u.areas.map((a) => (
-                        <span
-                          key={a}
-                          className="inline-flex items-center rounded bg-muted px-1.5 py-0.5 text-[11px] text-foreground"
-                        >
+                        <span key={a} className="inline-flex items-center rounded bg-muted px-1.5 py-0.5 text-[11px] text-foreground">
                           {AREAS_LABEL[a]}
                         </span>
                       ))}
@@ -159,15 +152,10 @@ function UsuariosIndex() {
             </tbody>
           </table>
 
-          {/* Lista en móvil */}
           <ul className="divide-y divide-border md:hidden">
             {filtrados.map((u) => (
               <li key={u.id} className="p-3">
-                <Link
-                  to="/admin/usuarios/$id"
-                  params={{ id: u.id }}
-                  className="flex flex-col gap-0.5"
-                >
+                <Link to="/admin/usuarios/$id" params={{ id: u.id }} className="flex flex-col gap-0.5">
                   <div className="flex items-center justify-between">
                     <span className="font-medium text-foreground">{u.nombre}</span>
                     {u.activo ? (

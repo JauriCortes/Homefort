@@ -1,8 +1,9 @@
 import { createFileRoute, Link, useNavigate, Navigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { ArrowLeft } from "lucide-react";
-import { store, type Area } from "@/lib/store";
+import { type Area } from "@/lib/store";
 import { useMe } from "@/hooks/api/use-auth";
+import { useCrearUsuario } from "@/hooks/api/use-admin";
 import { PageHeader, ErrorBanner } from "@/components/ui-bits";
 import { AreasChecklist, Button, Field, TextInput } from "@/components/form-bits";
 
@@ -13,6 +14,8 @@ export const Route = createFileRoute("/admin/usuarios/nuevo")({
 function NuevoUsuario() {
   const { data: usuario } = useMe();
   const navigate = useNavigate();
+  const crearUsuario = useCrearUsuario();
+
   const [nombre, setNombre] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -27,11 +30,15 @@ function NuevoUsuario() {
     setError(null);
     if (nombre.trim().length < 2) return setError("El nombre es obligatorio.");
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return setError("Correo inválido.");
-    if (store.emailUsuarioExiste(email)) return setError("Ya existe un usuario con ese correo.");
     if (password.length < 6) return setError("La contraseña debe tener al menos 6 caracteres.");
     if (areas.length === 0) return setError("Selecciona al menos un área.");
-    const u = store.crearUsuario({ nombre, email, password, areas, esAdmin });
-    navigate({ to: "/admin/usuarios/$id", params: { id: u.id } });
+    crearUsuario.mutate(
+      { nombre, email, password, areas, esAdmin },
+      {
+        onSuccess: (u) => navigate({ to: "/admin/usuarios/$id", params: { id: u.id } }),
+        onError: (err: Error) => setError(err.message),
+      },
+    );
   };
 
   return (
@@ -62,12 +69,7 @@ function NuevoUsuario() {
           <TextInput value={nombre} onChange={(e) => setNombre(e.target.value)} required />
         </Field>
         <Field label="Correo" required hint="Será su identificador de acceso al sistema.">
-          <TextInput
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
-          />
+          <TextInput type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
         </Field>
         <Field label="Contraseña inicial" required hint="Mínimo 6 caracteres.">
           <TextInput
@@ -102,11 +104,9 @@ function NuevoUsuario() {
 
         <div className="flex justify-end gap-2 pt-2">
           <Link to="/admin/usuarios">
-            <Button variant="secondary" type="button">
-              Cancelar
-            </Button>
+            <Button variant="secondary" type="button">Cancelar</Button>
           </Link>
-          <Button type="submit">Crear usuario</Button>
+          <Button type="submit" disabled={crearUsuario.isPending}>Crear usuario</Button>
         </div>
       </form>
     </div>

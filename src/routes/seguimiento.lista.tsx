@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState, useMemo } from "react";
 import { Search } from "lucide-react";
-import { useStore } from "@/hooks/use-store";
+import { useProyectos, useClientes } from "@/hooks/api/use-comercial";
 import { ESTADO_COLORS, type EstadoProyecto } from "@/lib/store";
 import { PageHeader } from "@/components/ui-bits";
 import { TextInput, Select } from "@/components/form-bits";
@@ -22,8 +22,8 @@ const ESTADOS: EstadoProyecto[] = [
 ];
 
 function ListaProyectos() {
-  const proyectos = useStore((s) => s.proyectos);
-  const clientes = useStore((s) => s.clientes);
+  const { data: proyectos = [] } = useProyectos();
+  const { data: clientes = [] } = useClientes();
   const [q, setQ] = useState("");
   const [filtroEstado, setFiltroEstado] = useState<"" | EstadoProyecto>("");
   const [filtroCliente, setFiltroCliente] = useState("");
@@ -143,7 +143,7 @@ function ListaProyectos() {
                 <tr key={p.id} className="border-t border-border hover:bg-muted/30">
                   <td className="px-3 py-2">
                     <Link
-                      to="/seguimiento/$id"
+                      to="/comercial/proyectos/$id"
                       params={{ id: p.id }}
                       className="font-medium text-primary hover:underline"
                     >

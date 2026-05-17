@@ -107,6 +107,15 @@ export function InfoBanner({ children }: { children: ReactNode }) {
   );
 }
 
+export function WarningBanner({ children }: { children: ReactNode }) {
+  return (
+    <div className="mb-4 flex items-start gap-2 rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-sm text-warning-foreground">
+      <span className="mt-0.5">⚠</span>
+      <div>{children}</div>
+    </div>
+  );
+}
+
 export function ReadOnlyBanner({ area }: { area: string }) {
   return (
     <div className="mb-4 flex items-center gap-2 rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-sm text-warning-foreground">
@@ -124,6 +133,9 @@ const ESTADO_STYLES: Record<string, string> = {
   "En definición": "bg-info/15 text-info",
   "En cotización": "bg-warning/20 text-warning-foreground",
   Aprobada: "bg-success/15 text-success",
+  "En producción": "bg-primary/10 text-primary",
+  Entregado: "bg-success/25 text-success",
+  "En garantía": "bg-warning/20 text-warning-foreground",
   Rechazada: "bg-destructive/15 text-destructive",
 };
 

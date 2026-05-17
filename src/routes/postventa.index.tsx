@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useStore } from "@/hooks/use-store";
+import { useSolicitudesGarantia } from "@/hooks/api/use-postventa";
 import { PageHeader } from "@/components/ui-bits";
 
 export const Route = createFileRoute("/postventa/")({
@@ -7,15 +7,19 @@ export const Route = createFileRoute("/postventa/")({
 });
 
 function PostventaDashboard() {
-  const solicitudes = useStore((s) => s.solicitudesGarantia);
-  const ordenes = useStore((s) => s.ordenesGarantia);
+  const { data: solicitudes = [] } = useSolicitudesGarantia();
 
   const abiertas = solicitudes.filter((s) => s.estado === "abierta").length;
-  const activas = ordenes.filter((o) => o.estado === "activa").length;
+  const enProceso = solicitudes.filter((s) => s.estado === "en_proceso").length;
+  const conOrden = solicitudes.filter((s) => s.ordenGarantiaId !== null).length;
 
   return (
     <div>
-      <PageHeader title="Postventa" description="Gestion de garantias y solicitudes de clientes." crumbs={[{ label: "Postventa" }]} />
+      <PageHeader
+        title="Postventa"
+        description="Gestion de garantias y solicitudes de clientes."
+        crumbs={[{ label: "Postventa" }]}
+      />
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         <div className="rounded-lg border border-border bg-surface p-4">
           <div className="text-xs text-muted-foreground">Solicitudes abiertas</div>
@@ -23,7 +27,7 @@ function PostventaDashboard() {
         </div>
         <div className="rounded-lg border border-border bg-surface p-4">
           <div className="text-xs text-muted-foreground">Ordenes activas</div>
-          <div className="mt-1 text-2xl font-semibold">{activas}</div>
+          <div className="mt-1 text-2xl font-semibold">{enProceso}</div>
         </div>
         <div className="rounded-lg border border-border bg-surface p-4">
           <div className="text-xs text-muted-foreground">Total solicitudes</div>
@@ -31,7 +35,7 @@ function PostventaDashboard() {
         </div>
         <div className="rounded-lg border border-border bg-surface p-4">
           <div className="text-xs text-muted-foreground">Total ordenes</div>
-          <div className="mt-1 text-2xl font-semibold">{ordenes.length}</div>
+          <div className="mt-1 text-2xl font-semibold">{conOrden}</div>
         </div>
       </div>
     </div>

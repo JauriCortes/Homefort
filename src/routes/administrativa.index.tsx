@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useStore } from "@/hooks/use-store";
+import { useOrdenesProduccion, useFacturas, usePagos } from "@/hooks/api/use-administrativa";
 import { PageHeader } from "@/components/ui-bits";
 import { formatCOP } from "@/lib/store";
 
@@ -8,17 +8,20 @@ export const Route = createFileRoute("/administrativa/")({
 });
 
 function AdministrativaDashboard() {
-  const facturas = useStore((s) => s.facturas);
-  const pagos = useStore((s) => s.pagos);
-  const ordenes = useStore((s) => s.ordenesProduccion);
-  const transportes = useStore((s) => s.transportes);
+  const { data: ordenes = [] } = useOrdenesProduccion();
+  const { data: facturas = [] } = useFacturas();
+  const { data: pagos = [] } = usePagos();
 
   const totalFacturado = facturas.reduce((s, f) => s + f.monto, 0);
   const totalPagado = pagos.reduce((s, p) => s + p.monto, 0);
 
   return (
     <div>
-      <PageHeader title="Administrativa" description="Gestion financiera y operativa." crumbs={[{ label: "Administrativa" }]} />
+      <PageHeader
+        title="Administrativa"
+        description="Gestion financiera y operativa."
+        crumbs={[{ label: "Administrativa" }]}
+      />
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         <div className="rounded-lg border border-border bg-surface p-4">
           <div className="text-xs text-muted-foreground">Ordenes produccion</div>

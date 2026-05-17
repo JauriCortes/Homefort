@@ -6,6 +6,7 @@ import { comprasRoutes } from "./routes/compras";
 import { administrativaRoutes } from "./routes/administrativa";
 import { postventaRoutes } from "./routes/postventa";
 import { produccionRoutes } from "./routes/produccion";
+import { adminRoutes } from "./routes/admin";
 
 export type Env = {
   DB: D1Database;
@@ -32,6 +33,7 @@ app.route("/api/compras", comprasRoutes);
 app.route("/api/administrativa", administrativaRoutes);
 app.route("/api/postventa", postventaRoutes);
 app.route("/api/produccion", produccionRoutes);
+app.route("/api/admin", adminRoutes);
 
 // Serve the SPA — fallback to index.html for client-side routes
 app.get("*", async (c) => {
