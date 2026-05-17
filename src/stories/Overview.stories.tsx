@@ -216,7 +216,7 @@ export const KitchenSink: Story = {
           <PageHeader
             title="Clientes"
             description="Gestiona los clientes del área comercial."
-            crumbs={[{ label: 'Comercial', to: '/comercial' }, { label: 'Clientes' }]}
+            crumbs={[{ label: 'Comercial' }, { label: 'Clientes' }]}
             actions={
               <>
                 <Button variant="secondary" size="sm">

@@ -277,8 +277,8 @@ export const TestFiltrarProyectos: Story = {
     const canvas = within(canvasElement);
     const select = canvas.getByRole('combobox');
     await userEvent.selectOptions(select, 'Aprobada');
-    // PROY-001 (Aprobada) should be visible
-    await expect(canvas.getByText('PROY-001')).toBeInTheDocument();
+    // PROY-001 (Aprobada) should be visible (appears in both desktop + mobile renders)
+    await expect(canvas.getAllByText('PROY-001')[0]).toBeInTheDocument();
     // Other states should NOT be visible
     await expect(canvas.queryByText('PROY-002')).not.toBeInTheDocument();
     await expect(canvas.queryByText('PROY-003')).not.toBeInTheDocument();

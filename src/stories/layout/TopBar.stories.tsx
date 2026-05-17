@@ -90,7 +90,7 @@ function TopBar({ pathname, usuario, onOpenMobileMenu }: TopBarProps) {
 
 // ─── User Avatar only ──────────────────────────────────────────────────────────
 
-export function UserAvatar({ nombre }: { nombre: string }) {
+function UserAvatar({ nombre }: { nombre: string }) {
   return (
     <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground">
       {initials(nombre)}

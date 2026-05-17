@@ -285,7 +285,7 @@ export const TestBuscarUsuario: Story = {
     const input = canvas.getByPlaceholderText(/buscar/i);
     await userEvent.type(input, 'andrés');
     // Only Andrés Gómez should be visible
-    await expect(canvas.getByText('Andrés Gómez')).toBeInTheDocument();
+    await expect(canvas.getAllByText('Andrés Gómez')[0]).toBeInTheDocument();
     // Other users should not be visible
     await expect(canvas.queryByText('Laura Sánchez')).not.toBeInTheDocument();
     await expect(canvas.queryByText('Carlos Ruiz')).not.toBeInTheDocument();
