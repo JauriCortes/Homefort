@@ -2,7 +2,8 @@ import { createFileRoute, Link, Navigate, useNavigate } from "@tanstack/react-ro
 import { useState } from "react";
 import { ArrowLeft, Shield, KeyRound, Power, Unlock } from "lucide-react";
 import { store, type Area, AREAS_LABEL } from "@/lib/store";
-import { useStore, useUsuarioActivo } from "@/hooks/use-store";
+import { useStore } from "@/hooks/use-store";
+import { useMe } from "@/hooks/api/use-auth";
 import {
   PageHeader,
   ErrorBanner,
@@ -17,7 +18,7 @@ export const Route = createFileRoute("/admin/usuarios/$id")({
 
 function UsuarioDetalle() {
   const { id } = Route.useParams();
-  const usuario = useUsuarioActivo();
+  const { data: usuario } = useMe();
   const navigate = useNavigate();
   const u = useStore((s) => s.usuario(id));
 
@@ -33,7 +34,7 @@ function UsuarioDetalle() {
   const [errorPwd, setErrorPwd] = useState<string | null>(null);
   const [okPwd, setOkPwd] = useState<string | null>(null);
 
-  if (!usuario.esAdmin) return <Navigate to="/comercial" replace />;
+  if (!usuario?.esAdmin) return <Navigate to="/comercial" replace />;
   if (!u) {
     return (
       <div>
@@ -53,7 +54,7 @@ function UsuarioDetalle() {
     );
   }
 
-  const esYoMismo = u.id === usuario.id;
+  const esYoMismo = u.id === usuario?.id;
   const bloqueado =
     !!u.bloqueadoHasta && new Date(u.bloqueadoHasta).getTime() > Date.now();
 

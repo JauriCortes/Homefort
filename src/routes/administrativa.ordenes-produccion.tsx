@@ -1,40 +1,48 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { Plus } from "lucide-react";
-import { store } from "@/lib/store";
-import { useStore, useUsuarioActivo } from "@/hooks/use-store";
+import { useMe } from "@/hooks/api/use-auth";
+import { useProyectos } from "@/hooks/api/use-comercial";
+import {
+  useOrdenesProduccion,
+  useCrearOrdenProduccion,
+  useActualizarOrdenProduccion,
+} from "@/hooks/api/use-administrativa";
 import { PageHeader, EmptyState, ErrorBanner, SuccessBanner } from "@/components/ui-bits";
 import { Button, Field, TextInput, Select } from "@/components/form-bits";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/administrativa/ordenes-produccion")({
   component: OrdenesProduccionPage,
 });
 
 function OrdenesProduccionPage() {
-  const usuario = useUsuarioActivo();
-  const ordenes = useStore((s) => s.ordenesProduccion);
-  const proyectos = useStore((s) => s.proyectos);
-  const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ proyectoId: "", cotizacionId: "", responsable: "", notas: "" });
-  const [error, setError] = useState<string | null>(null);
-  const [ok, setOk] = useState<string | null>(null);
-  const puedeEditar = usuario.esAdmin || usuario.areas.includes("administrativa");
+  const { data: usuario } = useMe();
+  const { data: ordenes = [] } = useOrdenesProduccion();
+  const { data: proyectos = [] } = useProyectos();
+  const crearOrden = useCrearOrdenProduccion();
+  const actualizarOrden = useActualizarOrdenProduccion();
 
+  const [showForm, setShowForm] = useState(false);
+  const [form, setForm] = useState({ proyectoId: "", responsable: "", notas: "" });
+  const [error, setError] = useState<string | null>(null);
+
+  const puedeEditar = usuario?.esAdmin || usuario?.areas?.includes("administrativa");
   const proyectosAprobados = proyectos.filter((p) => p.estado === "Aprobada");
 
-  const guardar = (e: React.FormEvent) => {
+  const guardar = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     if (!form.proyectoId) return setError("Selecciona un proyecto.");
     if (!form.responsable.trim()) return setError("El responsable es obligatorio.");
-    const proy = proyectos.find((p) => p.id === form.proyectoId);
-    const cotId = form.cotizacionId || proy?.cotizaciones.at(-1)?.id || "";
-    store.crearOrdenProduccion({ proyectoId: form.proyectoId, cotizacionId: cotId, responsable: form.responsable, notas: form.notas || undefined });
-    store.actualizarEstadoProyecto(form.proyectoId, "En producción");
-    setOk("Orden de produccion creada.");
-    setShowForm(false);
-    setForm({ proyectoId: "", cotizacionId: "", responsable: "", notas: "" });
-    setTimeout(() => setOk(null), 2500);
+    try {
+      await crearOrden.mutateAsync({ proyectoId: form.proyectoId, responsable: form.responsable, notas: form.notas || undefined });
+      toast.success("Orden de producción creada.");
+      setShowForm(false);
+      setForm({ proyectoId: "", responsable: "", notas: "" });
+    } catch {
+      toast.error("Error al crear la orden.");
+    }
   };
 
   return (
@@ -42,16 +50,23 @@ function OrdenesProduccionPage() {
       <PageHeader
         title="Órdenes de producción"
         crumbs={[{ label: "Administrativa" }, { label: "Órdenes de producción" }]}
-        actions={puedeEditar && proyectosAprobados.length > 0 ? <Button onClick={() => setShowForm((v) => !v)}><Plus className="h-4 w-4" /> {showForm ? "Cancelar" : "Nueva orden"}</Button> : undefined}
+        actions={
+          puedeEditar && proyectosAprobados.length > 0 ? (
+            <Button onClick={() => setShowForm((v) => !v)}>
+              <Plus className="h-4 w-4" /> {showForm ? "Cancelar" : "Nueva orden"}
+            </Button>
+          ) : undefined
+        }
       />
-      {ok && <SuccessBanner>{ok}</SuccessBanner>}
       {showForm && (
         <form onSubmit={guardar} className="mb-4 space-y-4 rounded-lg border border-border bg-surface p-4">
           {error && <ErrorBanner>{error}</ErrorBanner>}
           <Field label="Proyecto aprobado" required>
             <Select value={form.proyectoId} onChange={(e) => setForm({ ...form, proyectoId: e.target.value })}>
               <option value="">Selecciona...</option>
-              {proyectosAprobados.map((p) => <option key={p.id} value={p.id}>{p.codigo} - {p.tipo}</option>)}
+              {proyectosAprobados.map((p) => (
+                <option key={p.id} value={p.id}>{p.codigo} - {p.tipo}</option>
+              ))}
             </Select>
           </Field>
           <Field label="Responsable" required>
@@ -62,21 +77,24 @@ function OrdenesProduccionPage() {
           </Field>
           <div className="flex justify-end gap-2">
             <Button variant="secondary" type="button" onClick={() => setShowForm(false)}>Cancelar</Button>
-            <Button type="submit">Crear orden</Button>
+            <Button type="submit" disabled={crearOrden.isPending}>Crear orden</Button>
           </div>
         </form>
       )}
       {ordenes.length === 0 ? (
-        <EmptyState title="Sin ordenes de produccion" description={proyectosAprobados.length === 0 ? "No hay proyectos aprobados pendientes de orden." : "Crea la primera orden de produccion."} />
+        <EmptyState
+          title="Sin órdenes de producción"
+          description={proyectosAprobados.length === 0 ? "No hay proyectos aprobados pendientes de orden." : "Crea la primera orden de producción."}
+        />
       ) : (
         <div className="overflow-hidden rounded-lg border border-border bg-surface">
           <table className="w-full text-sm">
             <thead className="bg-muted/50 text-xs uppercase tracking-wide text-muted-foreground">
               <tr>
-                <th className="px-3 py-2 text-left font-medium">Numero</th>
+                <th className="px-3 py-2 text-left font-medium">Número</th>
                 <th className="px-3 py-2 text-left font-medium">Proyecto</th>
                 <th className="px-3 py-2 text-left font-medium">Responsable</th>
-                <th className="px-3 py-2 text-left font-medium">Emision</th>
+                <th className="px-3 py-2 text-left font-medium">Emisión</th>
                 <th className="px-3 py-2 text-left font-medium">Estado</th>
                 <th className="px-3 py-2"></th>
               </tr>
@@ -91,9 +109,14 @@ function OrdenesProduccionPage() {
                     <td className="px-3 py-2">{o.responsable}</td>
                     <td className="px-3 py-2 text-muted-foreground">{o.fechaEmision}</td>
                     <td className="px-3 py-2">
-                      <select value={o.estado} onChange={(ev) => store.actualizarOrdenProduccion(o.id, { estado: ev.target.value as any })} className="rounded border border-border bg-surface px-2 py-0.5 text-xs">
+                      <select
+                        value={o.estado}
+                        disabled={!puedeEditar}
+                        onChange={(ev) => actualizarOrden.mutate({ id: o.id, estado: ev.target.value as any })}
+                        className="rounded border border-border bg-surface px-2 py-0.5 text-xs"
+                      >
                         <option>Emitida</option>
-                        <option>En produccion</option>
+                        <option>En producción</option>
                         <option>Finalizada</option>
                       </select>
                     </td>

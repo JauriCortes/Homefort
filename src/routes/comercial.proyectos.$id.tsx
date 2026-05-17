@@ -411,9 +411,7 @@ function MilestoneButtons({
 }) {
   const botones = (MILESTONE_ACCIONES[estadoActual] ?? []).filter(
     (btn) =>
-      !btn.requiredArea ||
-      usuario?.esAdmin ||
-      usuario?.areas.includes(btn.requiredArea as never),
+      !btn.requiredArea || usuario?.esAdmin || usuario?.areas.includes(btn.requiredArea as never),
   );
   if (!botones.length) return null;
 
@@ -440,8 +438,8 @@ function ResumenTab({ proyecto }: { proyecto: Proyecto }) {
         <h3 className="mb-2 flex items-center gap-2 text-sm font-semibold">
           <ListChecks className="h-4 w-4" /> Especificaciones del proyecto
         </h3>
-        {especActual?.contenido ? (
-          <p className="whitespace-pre-wrap text-sm">{especActual.contenido}</p>
+        {especActual ? (
+          <EspecFields e={especActual} />
         ) : (
           <p className="text-sm text-muted-foreground">Sin especificaciones aún.</p>
         )}
@@ -474,6 +472,51 @@ function ResumenTab({ proyecto }: { proyecto: Proyecto }) {
 
 /* ---------------- Especificaciones ---------------- */
 
+function EspecFields({
+  e,
+}: {
+  e: {
+    medidas?: string;
+    materiales?: string;
+    acabados?: string;
+    observaciones?: string;
+    contenido?: string;
+  };
+}) {
+  const hasStructured = e.medidas || e.materiales || e.acabados || e.observaciones;
+  if (hasStructured) {
+    return (
+      <dl className="space-y-2 text-sm">
+        {e.medidas && (
+          <div>
+            <dt className="text-xs font-medium text-muted-foreground">Medidas</dt>
+            <dd className="whitespace-pre-wrap">{e.medidas}</dd>
+          </div>
+        )}
+        {e.materiales && (
+          <div>
+            <dt className="text-xs font-medium text-muted-foreground">Materiales</dt>
+            <dd className="whitespace-pre-wrap">{e.materiales}</dd>
+          </div>
+        )}
+        {e.acabados && (
+          <div>
+            <dt className="text-xs font-medium text-muted-foreground">Acabados</dt>
+            <dd className="whitespace-pre-wrap">{e.acabados}</dd>
+          </div>
+        )}
+        {e.observaciones && (
+          <div>
+            <dt className="text-xs font-medium text-muted-foreground">Observaciones</dt>
+            <dd className="whitespace-pre-wrap">{e.observaciones}</dd>
+          </div>
+        )}
+      </dl>
+    );
+  }
+  return <p className="whitespace-pre-wrap text-sm">{e.contenido}</p>;
+}
+
 function EspecificacionesTab({
   proyectoId,
   puedeEditar,
@@ -486,20 +529,42 @@ function EspecificacionesTab({
   const agregarEspecificacion = useAgregarEspecificacion(proyectoId);
   const ultima = proyecto?.especificaciones[proyecto.especificaciones.length - 1];
   const [editing, setEditing] = useState(false);
-  const [contenido, setContenido] = useState(ultima?.contenido ?? "");
+  const [form, setForm] = useState({
+    medidas: "",
+    materiales: "",
+    acabados: "",
+    observaciones: "",
+  });
   const [error, setError] = useState<string | null>(null);
   const [ok, setOk] = useState<string | null>(null);
 
   if (!proyecto) return null;
+
+  const startEditing = () => {
+    setForm({
+      medidas: ultima?.medidas ?? "",
+      materiales: ultima?.materiales ?? "",
+      acabados: ultima?.acabados ?? "",
+      observaciones: ultima?.observaciones ?? "",
+    });
+    setEditing(true);
+  };
 
   const guardar = (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setOk(null);
     if (!puedeEditar) return setError("No tienes permisos.");
-    if (!contenido.trim()) return setError("Escribe las especificaciones del proyecto.");
+    if (
+      !form.medidas.trim() &&
+      !form.materiales.trim() &&
+      !form.acabados.trim() &&
+      !form.observaciones.trim()
+    ) {
+      return setError("Completa al menos un campo de especificación.");
+    }
     agregarEspecificacion.mutate(
-      { contenido: contenido.trim(), actualizadoPor: usuario?.nombre ?? "—" },
+      { ...form, actualizadoPor: usuario?.nombre ?? "—" },
       {
         onSuccess: () => {
           setOk(
@@ -523,10 +588,10 @@ function EspecificacionesTab({
         <EmptyState
           icon={FileText}
           title="Sin especificaciones técnicas"
-          description="Describe las medidas, materiales, acabados y cualquier detalle técnico del proyecto."
+          description="Registra medidas, materiales, acabados y observaciones del proyecto."
           action={
             puedeEditar ? (
-              <Button onClick={() => setEditing(true)}>
+              <Button onClick={startEditing}>
                 <Plus className="h-4 w-4" /> Registrar especificaciones
               </Button>
             ) : (
@@ -546,14 +611,7 @@ function EspecificacionesTab({
               </p>
             </div>
             {puedeEditar ? (
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => {
-                  setContenido(ultima.contenido);
-                  setEditing(true);
-                }}
-              >
+              <Button variant="secondary" size="sm" onClick={startEditing}>
                 <Pencil className="h-3.5 w-3.5" /> Nueva versión
               </Button>
             ) : (
@@ -566,7 +624,7 @@ function EspecificacionesTab({
             )}
           </header>
           <div className="p-4">
-            <p className="whitespace-pre-wrap text-sm">{ultima.contenido}</p>
+            <EspecFields e={ultima} />
           </div>
         </div>
       )}
@@ -579,14 +637,40 @@ function EspecificacionesTab({
           <InfoBanner>
             Los cambios crean una nueva versión. La especificación anterior queda en el historial.
           </InfoBanner>
-          <Field label="Especificaciones" required>
-            <TextArea
-              value={contenido}
-              onChange={(e) => setContenido(e.target.value)}
-              placeholder="Describe medidas, materiales, acabados, herrajes y cualquier detalle técnico necesario para producción…"
-              rows={10}
-            />
-          </Field>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Medidas" hint="Ej. 3.20m × 0.60m, alto 0.90m">
+              <TextArea
+                value={form.medidas}
+                onChange={(e) => setForm({ ...form, medidas: e.target.value })}
+                placeholder="Dimensiones, largo, alto, fondo…"
+                rows={3}
+              />
+            </Field>
+            <Field label="Materiales" hint="Ej. MDF enchapado nogal, granito negro">
+              <TextArea
+                value={form.materiales}
+                onChange={(e) => setForm({ ...form, materiales: e.target.value })}
+                placeholder="Tableros, herrajes, vidrios…"
+                rows={3}
+              />
+            </Field>
+            <Field label="Acabados" hint="Ej. Laca mate, herrajes Blum">
+              <TextArea
+                value={form.acabados}
+                onChange={(e) => setForm({ ...form, acabados: e.target.value })}
+                placeholder="Laca, pintura, canto, textura…"
+                rows={3}
+              />
+            </Field>
+            <Field label="Observaciones" hint="Detalles adicionales para producción">
+              <TextArea
+                value={form.observaciones}
+                onChange={(e) => setForm({ ...form, observaciones: e.target.value })}
+                placeholder="Isla central, instalación especial…"
+                rows={3}
+              />
+            </Field>
+          </div>
           <div className="flex flex-wrap justify-end gap-2">
             <Button variant="secondary" type="button" onClick={() => setEditing(false)}>
               Cancelar
@@ -615,7 +699,7 @@ function EspecificacionesTab({
                       {e.actualizadoEn} · {e.actualizadoPor}
                     </span>
                   </div>
-                  <p className="whitespace-pre-wrap text-xs text-muted-foreground">{e.contenido}</p>
+                  <EspecFields e={e} />
                 </li>
               ))}
           </ul>
@@ -637,9 +721,7 @@ function getStockWarning(
   stocks: MaterialStock[],
 ): string | null {
   if (!descripcion.trim() || !stocks.length) return null;
-  const match = stocks.find(
-    (m) => m.nombre.toLowerCase() === descripcion.trim().toLowerCase(),
-  );
+  const match = stocks.find((m) => m.nombre.toLowerCase() === descripcion.trim().toLowerCase());
   if (!match) return null;
   if (match.stockDisponible < cantidad) {
     return `Stock insuficiente: hay ${match.stockDisponible} ${match.unidad} disponibles, se necesitan ${cantidad}.`;
@@ -976,11 +1058,7 @@ function CotizacionesTab({
                     </div>
                   </div>
                   {puedeEditar && (
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      onClick={() => setCreating(true)}
-                    >
+                    <Button variant="secondary" size="sm" onClick={() => setCreating(true)}>
                       <Plus className="h-3.5 w-3.5" /> Nueva versión
                     </Button>
                   )}
@@ -1017,10 +1095,7 @@ function CotizacionesTab({
                           </span>
                         </summary>
                         <div className="border-t border-border/50">
-                          <CotizacionItemsTable
-                            items={c.items}
-                            materialesStock={materialesStock}
-                          />
+                          <CotizacionItemsTable items={c.items} materialesStock={materialesStock} />
                           <div className="bg-surface-2 px-4 py-2 text-xs text-muted-foreground">
                             Condiciones: {c.condicionesPago} · margen {c.margenPct}%
                           </div>

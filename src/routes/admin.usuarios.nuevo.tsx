@@ -2,7 +2,7 @@ import { createFileRoute, Link, useNavigate, Navigate } from "@tanstack/react-ro
 import { useState } from "react";
 import { ArrowLeft } from "lucide-react";
 import { store, type Area } from "@/lib/store";
-import { useUsuarioActivo } from "@/hooks/use-store";
+import { useMe } from "@/hooks/api/use-auth";
 import { PageHeader, ErrorBanner } from "@/components/ui-bits";
 import { AreasChecklist, Button, Field, TextInput } from "@/components/form-bits";
 
@@ -11,7 +11,7 @@ export const Route = createFileRoute("/admin/usuarios/nuevo")({
 });
 
 function NuevoUsuario() {
-  const usuario = useUsuarioActivo();
+  const { data: usuario } = useMe();
   const navigate = useNavigate();
   const [nombre, setNombre] = useState("");
   const [email, setEmail] = useState("");
@@ -20,7 +20,7 @@ function NuevoUsuario() {
   const [esAdmin, setEsAdmin] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  if (!usuario.esAdmin) return <Navigate to="/comercial" replace />;
+  if (!usuario?.esAdmin) return <Navigate to="/comercial" replace />;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();

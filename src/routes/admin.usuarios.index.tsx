@@ -1,7 +1,8 @@
 import { createFileRoute, Link, Navigate } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { Plus, Shield, Users as UsersIcon, Search } from "lucide-react";
-import { useStore, useUsuarioActivo } from "@/hooks/use-store";
+import { useStore } from "@/hooks/use-store";
+import { useMe } from "@/hooks/api/use-auth";
 import { AREAS_LABEL } from "@/lib/store";
 import { PageHeader, EmptyState } from "@/components/ui-bits";
 import { Button, Select, TextInput } from "@/components/form-bits";
@@ -11,13 +12,13 @@ export const Route = createFileRoute("/admin/usuarios/")({
 });
 
 function UsuariosIndex() {
-  const usuario = useUsuarioActivo();
+  const { data: usuario } = useMe();
   const usuarios = useStore((s) => s.usuarios);
   const [q, setQ] = useState("");
   const [filtroArea, setFiltroArea] = useState<"todas" | string>("todas");
   const [verInactivos, setVerInactivos] = useState(false);
 
-  if (!usuario.esAdmin) return <Navigate to="/comercial" replace />;
+  if (!usuario?.esAdmin) return <Navigate to="/comercial" replace />;
 
   const filtrados = useMemo(() => {
     return usuarios.filter((u) => {

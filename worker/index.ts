@@ -3,6 +3,9 @@ import { cors } from "hono/cors";
 import { authRoutes } from "./routes/auth";
 import { comercialRoutes } from "./routes/comercial";
 import { comprasRoutes } from "./routes/compras";
+import { administrativaRoutes } from "./routes/administrativa";
+import { postventaRoutes } from "./routes/postventa";
+import { produccionRoutes } from "./routes/produccion";
 
 export type Env = {
   DB: D1Database;
@@ -26,6 +29,9 @@ app.get("/api/health", (c) => c.json({ ok: true, ts: Date.now() }));
 app.route("/api/auth", authRoutes);
 app.route("/api/comercial", comercialRoutes);
 app.route("/api/compras", comprasRoutes);
+app.route("/api/administrativa", administrativaRoutes);
+app.route("/api/postventa", postventaRoutes);
+app.route("/api/produccion", produccionRoutes);
 
 // Serve the SPA — fallback to index.html for client-side routes
 app.get("*", async (c) => {
