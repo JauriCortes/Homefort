@@ -1,8 +1,7 @@
 import { Hono } from "hono";
 import { drizzle } from "drizzle-orm/d1";
 import { eq, ne } from "drizzle-orm";
-import { hash } from "bcryptjs";
-import { randomUUID } from "node:crypto";
+import { hashSync } from "bcryptjs";
 import { usuarios } from "../db/schema";
 import { requireAuth } from "../middleware/auth";
 import type { Env } from "../index";
@@ -64,9 +63,9 @@ admin.post("/usuarios", async (c) => {
   const [existing] = await db.select().from(usuarios).where(eq(usuarios.email, email.toLowerCase())).limit(1);
   if (existing) return c.json({ error: "Ya existe un usuario con ese correo" }, 409);
 
-  const passwordHash = await hash(password, 10);
+  const passwordHash = hashSync(password, 10);
   const u = {
-    id: randomUUID(),
+    id: crypto.randomUUID(),
     nombre: nombre.trim(),
     email: email.toLowerCase().trim(),
     passwordHash,
@@ -128,7 +127,7 @@ admin.patch("/usuarios/:id/password", async (c) => {
   const [u] = await db.select().from(usuarios).where(eq(usuarios.id, id)).limit(1);
   if (!u) return c.json({ error: "Usuario no encontrado" }, 404);
 
-  const passwordHash = await hash(password, 10);
+  const passwordHash = hashSync(password, 10);
   await db.update(usuarios).set({ passwordHash }).where(eq(usuarios.id, id));
   return c.json({ ok: true });
 });

@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { sign, verify } from "hono/jwt";
-import { compare } from "bcryptjs";
+import { compareSync } from "bcryptjs";
 import { drizzle } from "drizzle-orm/d1";
 import { eq } from "drizzle-orm";
 import { usuarios } from "../db/schema";
@@ -64,7 +64,7 @@ auth.post("/login", async (c) => {
     }
   }
 
-  const ok = await compare(password, usuario.passwordHash);
+  const ok = compareSync(password, usuario.passwordHash);
 
   if (!ok) {
     const intentos = usuario.intentosFallidos + 1;
