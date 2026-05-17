@@ -174,7 +174,7 @@ export const TestTogglePassword: Story = {
     const canvas = within(canvasElement);
 
     // Fill the password field first so we can inspect the type change
-    const passwordInput = canvas.getByLabelText('Contraseña', { selector: 'input' });
+    const passwordInput = canvas.getByLabelText(/contraseña/i, { selector: 'input' });
     await userEvent.type(passwordInput, 'micontraseña');
 
     // Initially should be type="password"
