@@ -1,73 +1,116 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
-import { EstadoBadge, TipoClienteBadge } from '@/components/ui-bits';
+import { EstadoBadge } from '@/components/ui-bits';
 
-// ─── EstadoBadge ───────────────────────────────────────────────────────────────
-
-const estadoMeta: Meta<typeof EstadoBadge> = {
+const meta: Meta<typeof EstadoBadge> = {
   title: 'Components/Badges/EstadoBadge',
   component: EstadoBadge,
   tags: ['autodocs'],
   parameters: { layout: 'centered' },
+  argTypes: {
+    estado: {
+      control: 'select',
+      options: [
+        'Solicitud',
+        'En definición',
+        'En cotización',
+        'Aprobada',
+        'En producción',
+        'Entregado',
+        'En garantía',
+        'Rechazada',
+      ],
+      description: 'Project lifecycle state',
+    },
+  },
 };
-export default estadoMeta;
-type EstadoStory = StoryObj<typeof estadoMeta>;
+export default meta;
+type Story = StoryObj<typeof meta>;
 
-export const Solicitud: EstadoStory = {
+// ─── Individual states (full project lifecycle) ─────────────────────────────────
+
+export const Solicitud: Story = {
   args: { estado: 'Solicitud' },
 };
 
-export const EnDefinicion: EstadoStory = {
+export const EnDefinicion: Story = {
   name: 'En definición',
   args: { estado: 'En definición' },
 };
 
-export const EnCotizacion: EstadoStory = {
+export const EnCotizacion: Story = {
   name: 'En cotización',
   args: { estado: 'En cotización' },
 };
 
-export const Aprobada: EstadoStory = {
+export const Aprobada: Story = {
   args: { estado: 'Aprobada' },
 };
 
-export const Rechazada: EstadoStory = {
+export const EnProduccion: Story = {
+  name: 'En producción',
+  args: { estado: 'En producción' },
+};
+
+export const Entregado: Story = {
+  args: { estado: 'Entregado' },
+};
+
+export const EnGarantia: Story = {
+  name: 'En garantía',
+  args: { estado: 'En garantía' },
+};
+
+export const Rechazada: Story = {
   args: { estado: 'Rechazada' },
 };
 
-export const AllEstados: EstadoStory = {
-  name: 'All estados',
+export const UnknownFallback: Story = {
+  name: 'Unknown estado (muted fallback)',
+  args: { estado: 'Estado desconocido' },
+};
+
+// ─── Composite view ─────────────────────────────────────────────────────────────
+
+export const FullLifecycle: Story = {
+  name: 'Full lifecycle — all states',
   render: () => (
-    <div className="flex flex-wrap items-center gap-2">
-      <EstadoBadge estado="Solicitud" />
-      <EstadoBadge estado="En definición" />
-      <EstadoBadge estado="En cotización" />
-      <EstadoBadge estado="Aprobada" />
-      <EstadoBadge estado="Rechazada" />
+    <div className="flex flex-col gap-3">
+      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+        Ciclo de vida del proyecto
+      </p>
+      <div className="flex flex-wrap gap-2">
+        <EstadoBadge estado="Solicitud" />
+        <EstadoBadge estado="En definición" />
+        <EstadoBadge estado="En cotización" />
+        <EstadoBadge estado="Aprobada" />
+        <EstadoBadge estado="En producción" />
+        <EstadoBadge estado="Entregado" />
+        <EstadoBadge estado="En garantía" />
+        <EstadoBadge estado="Rechazada" />
+      </div>
     </div>
   ),
 };
 
-export const UnknownEstado: EstadoStory = {
-  name: 'Unknown estado (fallback)',
-  args: { estado: 'Otro estado' },
-};
-
-// ─── TipoClienteBadge ──────────────────────────────────────────────────────────
-
-export const B2B: StoryObj = {
-  render: () => <TipoClienteBadge tipo="B2B" />,
-};
-
-export const B2C: StoryObj = {
-  render: () => <TipoClienteBadge tipo="B2C" />,
-};
-
-export const BothTipos: StoryObj = {
-  name: 'B2B and B2C side by side',
+export const InContext: Story = {
+  name: 'In context — project list row',
   render: () => (
-    <div className="flex items-center gap-2">
-      <TipoClienteBadge tipo="B2B" />
-      <TipoClienteBadge tipo="B2C" />
+    <div className="w-80 divide-y divide-border rounded-lg border border-border bg-surface">
+      {[
+        { code: 'PY-001', client: 'Diana Restrepo', estado: 'Aprobada' },
+        { code: 'PY-002', client: 'Constructora Andina', estado: 'En producción' },
+        { code: 'PY-003', client: 'Carlos Méndez', estado: 'En cotización' },
+        { code: 'PY-004', client: 'Arq. López', estado: 'Entregado' },
+        { code: 'PY-005', client: 'Ana Gómez', estado: 'Rechazada' },
+      ].map(({ code, client, estado }) => (
+        <div key={code} className="flex items-center justify-between px-3 py-2 text-sm">
+          <div>
+            <span className="font-medium text-foreground">{code}</span>
+            <span className="ml-2 text-muted-foreground">{client}</span>
+          </div>
+          <EstadoBadge estado={estado} />
+        </div>
+      ))}
     </div>
   ),
 };

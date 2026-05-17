@@ -141,8 +141,13 @@ export function useActualizarEstadoProyecto(proyectoId: string) {
 export function useAgregarEspecificacion(proyectoId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (data: { contenido: string; actualizadoPor?: string }) =>
-      api.post(`/comercial/proyectos/${proyectoId}/especificaciones`, data),
+    mutationFn: (data: {
+      medidas?: string;
+      materiales?: string;
+      acabados?: string;
+      observaciones?: string;
+      actualizadoPor?: string;
+    }) => api.post(`/comercial/proyectos/${proyectoId}/especificaciones`, data),
     onSuccess: () => {
       qc.invalidateQueries({
         queryKey: comercialKeys.proyectos.detail(proyectoId),

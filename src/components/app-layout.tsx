@@ -1,7 +1,8 @@
 import { Link, Outlet, useLocation, useNavigate } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Briefcase,
+  ChevronDown,
   Hammer,
   Menu,
   ShoppingCart,
@@ -89,6 +90,23 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   const { data: usuario } = useMe();
   const logout = useLogout();
   const location = useLocation();
+  const [canScrollDown, setCanScrollDown] = useState(false);
+  const navRef = useRef<HTMLElement>(null);
+  const sentinelRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!usuario) return;
+    const nav = navRef.current;
+    const sentinel = sentinelRef.current;
+    if (!nav || !sentinel) return;
+    const io = new IntersectionObserver(
+      ([entry]) => setCanScrollDown(!entry.isIntersecting),
+      { root: nav, threshold: 0 },
+    );
+    io.observe(sentinel);
+    return () => io.disconnect();
+  }, [usuario]);
+
   if (!usuario) return null;
 
   const handleLogout = () => {
@@ -114,7 +132,20 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
           </div>
         </div>
       </div>
-      <nav className="flex-1 overflow-y-auto px-2 pb-2">
+      <div className="relative min-h-0 flex-1">
+        <button
+          aria-label="Desplazar hacia abajo"
+          onClick={() => navRef.current?.scrollBy({ top: 120, behavior: "smooth" })}
+          className="absolute bottom-0 left-0 right-0 z-10 flex h-14 items-end justify-center pb-1.5 transition-opacity duration-500 cursor-pointer"
+          style={{
+            background: "linear-gradient(to top, rgba(255,255,255,0.13), transparent)",
+            opacity: canScrollDown ? 1 : 0,
+            pointerEvents: canScrollDown ? "auto" : "none",
+          }}
+        >
+          <ChevronDown className="h-3.5 w-3.5 animate-bounce text-sidebar-foreground/40" />
+        </button>
+      <nav ref={navRef as React.Ref<HTMLElement>} className="sidebar-scroll absolute inset-0 overflow-y-auto px-2 pb-2">
         {NAV_SECTIONS.map((section) => (
           <div key={section.label} className="mb-2">
             <div className="px-2 py-1.5 text-[11px] uppercase tracking-wide text-sidebar-foreground/60">
@@ -167,7 +198,9 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
             </ul>
           </div>
         )}
+        <div ref={sentinelRef} className="h-px shrink-0" aria-hidden="true" />
       </nav>
+      </div>
       <div className="border-t border-sidebar-border p-3">
         <div className="mb-2 rounded-md bg-sidebar-accent/40 px-3 py-2 text-sm">
           <div className="truncate font-medium text-sidebar-foreground">{usuario.nombre}</div>

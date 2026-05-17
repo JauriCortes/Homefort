@@ -276,8 +276,8 @@ export const TestFiltrarPorNombre: Story = {
     const input = canvas.getByPlaceholderText(/buscar por nombre/i);
     await userEvent.clear(input);
     await userEvent.type(input, 'María');
-    // María Rodríguez should be visible
-    await expect(canvas.getByText('María Rodríguez')).toBeInTheDocument();
+    // María Rodríguez should be visible (appears in both desktop + mobile renders)
+    await expect(canvas.getAllByText('María Rodríguez')[0]).toBeInTheDocument();
     // B2B clients should NOT be visible
     await expect(canvas.queryByText('Constructora Andina SAS')).not.toBeInTheDocument();
     await expect(canvas.queryByText('Inmobiliaria Norte Ltda')).not.toBeInTheDocument();
@@ -295,9 +295,9 @@ export const TestFiltrarPorTipo: Story = {
     const canvas = within(canvasElement);
     const select = canvas.getByRole('combobox', { name: /filtrar por tipo/i });
     await userEvent.selectOptions(select, 'B2B');
-    // B2B clients should be visible
-    await expect(canvas.getByText('Constructora Andina SAS')).toBeInTheDocument();
-    await expect(canvas.getByText('Inmobiliaria Norte Ltda')).toBeInTheDocument();
+    // B2B clients should be visible (appears in both desktop + mobile renders)
+    await expect(canvas.getAllByText('Constructora Andina SAS')[0]).toBeInTheDocument();
+    await expect(canvas.getAllByText('Inmobiliaria Norte Ltda')[0]).toBeInTheDocument();
     // B2C clients should NOT be visible
     await expect(canvas.queryByText('María Rodríguez')).not.toBeInTheDocument();
     await expect(canvas.queryByText('Carlos Torres')).not.toBeInTheDocument();

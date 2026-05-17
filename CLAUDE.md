@@ -34,16 +34,51 @@ Route segments map to business domains:
 | `/postventa` | Warranty requests and orders |
 | `/admin` | User management (admin role only) |
 
-### State Management (current — localStorage)
+### State Management — React Query (API-backed)
 
-All application state lives in `src/lib/store.ts` — a single object that serializes to `localStorage`. It exposes methods (`store.login()`, `store.crearCliente()`, etc.) and an event emitter for reactivity.
+All application state is fetched from the backend API via React Query. The old `src/lib/store.ts` (localStorage) is **no longer used by any route** — it exists only as a source of shared types (`EstadoProyecto`, `TRANSICIONES`, `ESTADO_COLORS`, `formatCOP`, etc.) until those are extracted.
 
-`src/hooks/use-store.ts` wraps `useSyncExternalStore` with JSON-based memoization to prevent infinite loops when selectors return new array/object references. Always use `useStore(selector)` — never read `store.*` directly in components.
+**Never use `useStore(selector)` in new code.** Use the domain hooks in `src/hooks/api/` instead.
 
-Key auth hooks:
-- `useSesion()` — current user or null
-- `useUsuarioActivo()` — throws if no session (safe inside `AppLayout`)
-- `usePuedeEditar(area)` — permission check by area
+Key auth hooks (`src/hooks/api/use-auth.ts`):
+- `useMe()` — current user or null (replaces `useSesion`)
+- `useLogin()` / `useLogout()` — mutations
+
+### API Hooks by Domain
+
+All hooks live in `src/hooks/api/` and use `@tanstack/react-query`:
+
+| File | Key exports |
+|---|---|
+| `use-auth.ts` | `useMe`, `useLogin`, `useLogout` |
+| `use-comercial.ts` | `useClientes`, `useCliente`, `useProyectos`, `useProyecto`, `useCrearProyecto`, `useActualizarEstadoProyecto`, `useAgregarEspecificacion`, `useAgregarCotizacion`, `useAgregarCambio` |
+| `use-compras.ts` | `useMateriales`, `useStock`, `useProveedores`, `useMovimientos`, `useSolicitudesCompra`, `useOrdenesCompra` |
+| `use-administrativa.ts` | `useOrdenesProduccion`, `useFacturas`, `usePagos`, `useTransportes`, `useAjustesCosto`, `useResumenCostos`, `useSaldoFactura` |
+| `use-produccion.ts` | `useOrdenesProduccionList`, `useOrdenProduccion`, `useCrearEtapa`, `useActualizarEtapa`, `useRegistrarEntrega` |
+| `use-postventa.ts` | `useSolicitudesGarantia`, `useSolicitudGarantia`, `useCrearSolicitudGarantia`, `useCrearOrdenGarantia`, `useActualizarOrdenGarantia` |
+| `use-admin.ts` | `useUsuarios`, `useUsuario`, `useCrearUsuario`, `useActualizarUsuario`, `useCambiarPasswordAdmin`, `useDesbloquearUsuario` |
+
+### Backend (Worker)
+
+```
+worker/
+  index.ts            # Hono entry point — mounts all routes + serves SPA
+  db/
+    schema.ts         # Drizzle table definitions (~20 models)
+    migrations/       # drizzle-kit generated
+  middleware/
+    auth.ts           # JWT httpOnly cookie verification + requireAuth / requireArea
+  routes/
+    auth.ts           # /api/auth — login, logout, refresh, me
+    comercial.ts      # /api/comercial
+    compras.ts        # /api/compras
+    administrativa.ts # /api/administrativa
+    produccion.ts     # /api/produccion
+    postventa.ts      # /api/postventa
+    admin.ts          # /api/admin — user CRUD (admin only)
+```
+
+Auth strategy: `hf_access` cookie (30 min sliding) + `hf_refresh` cookie (8 h, path `/api/auth/refresh`). Both `HttpOnly; Secure; SameSite=Strict`. Bcrypt for password hashing.
 
 ### Domain Model
 
@@ -55,7 +90,7 @@ Five épicas, each a namespace of types exported from `src/lib/store.ts`:
 - **Produccion:** `EtapaProduccion`, `EntregaProduccion`
 - **Postventa:** `SolicitudGarantia`, `OrdenGarantia`
 
-`EstadoProyecto` transitions are machine-enforced via `TRANSICIONES`. See the Business Domain section for who can trigger each transition and the rules around `SolicitudCompra` auto-generation.
+`EstadoProyecto` transitions are machine-enforced via `TRANSICIONES`. See the Business Domain section for who can trigger each transition.
 
 ### UI Components
 
@@ -69,6 +104,14 @@ Custom building blocks in `src/components/ui-bits.tsx`:
 Form pattern: React Hook Form + Zod resolver on every form. Zod schemas are defined inline in the route file.
 
 Toast notifications: Sonner (`toast.success` / `toast.error`), mounted in `__root.tsx`.
+
+#### Sidebar scroll fade
+
+`AppLayout` (`src/components/app-layout.tsx`) renders a fade gradient at the bottom of the sidebar nav when content overflows. Implementation uses:
+- `IntersectionObserver` on a sentinel `<div>` at the end of the nav content
+- `root: navRef.current` so intersection is measured within the nav scroll container
+- Gradient color defined via `--sidebar-scroll-fade` CSS variable in `src/styles.css` (white/20% in dark mode, black/25% in light mode)
+- Nav is `position: absolute; inset: 0` inside a `relative min-h-0 flex-1` wrapper to guarantee a definite height for overflow detection
 
 ### Deployment
 
@@ -106,7 +149,7 @@ All users can **read** everything. Each user can only **write** in their assigne
 
 ### SolicitudCompra auto-generation (HU-2.3)
 
-A `SolicitudCompra` is created automatically when Comercial marks a project as `"Aprobada"` **if any cotización item has insufficient stock**. The request specifies which materials are missing and in what quantity. This is currently implemented as an unconditional creation on "Aprobada" — Phase 3 (Compras) will refine this to check actual stock levels.
+A `SolicitudCompra` is created automatically when Comercial marks a project as `"Aprobada"` if any cotización item has insufficient stock. Phase 3 (Compras) will refine the stock check.
 
 ### Cotizaciones (HU-1.4)
 
@@ -128,52 +171,23 @@ Versioned free-form text. Each save creates a new version; previous versions are
 
 ---
 
-## Active Migration: Adding Backend (v1.0)
+## Migration Status
 
-**The app is currently being migrated from localStorage to a real backend.** Do not assume the store is the final state.
+The localStorage → backend migration is complete for all route files. `store.ts` is kept only for shared types.
 
-Target stack: **Hono** (API on CF Worker) + **Cloudflare D1** (SQLite edge) + **Drizzle ORM**.
+| Phase | Status | Notes |
+|---|---|---|
+| Phase 0 — Infrastructure | ✅ Done | Hono + D1 + Drizzle wired up |
+| Phase 1 — Auth | ✅ Done | JWT cookies, bcrypt, refresh token |
+| Phase 2 — Comercial | ✅ Done | Clientes, proyectos, specs, quotes, cambios |
+| Phase 3 — Compras | ✅ Done | Materiales, proveedores, inventario, solicitudes, órdenes |
+| Phase 4 — Administrativa | ✅ Done | Órdenes producción, facturas, pagos, transporte, costos |
+| Phase 5 — Producción | ✅ Done | Etapas, entregas |
+| Phase 6 — Postventa | ✅ Done | Solicitudes garantía, órdenes garantía |
+| Phase 6b — Admin | ✅ Done | User CRUD via `/api/admin/usuarios` |
+| Phase 7 — Delete `store.ts` | ⏳ Pending | Blocked on extracting shared types first |
 
-Structure being added:
-```
-worker/
-  index.ts          # Hono entry point, mounts API + serves static assets
-  db/
-    schema.ts       # Drizzle table definitions (all ~20 models)
-    migrations/     # drizzle-kit generated
-  middleware/
-    auth.ts         # JWT httpOnly cookie verification
-  routes/
-    auth.ts
-    comercial.ts
-    compras.ts
-    administrativa.ts
-    produccion.ts
-    postventa.ts
-
-src/
-  lib/
-    api-client.ts   # Typed fetch wrapper (to be created)
-    query-client.ts # React Query singleton (to be created)
-  hooks/api/        # React Query hooks per domain (to be created)
-    use-auth.ts
-    use-comercial.ts
-    ...
-```
-
-Migration order (strangler-fig — app stays functional throughout):
-1. **Phase 0** — Infrastructure (Hono stub, D1, wrangler bindings)
-2. **Phase 1** — Auth (JWT cookies replace FNV-1a mock + localStorage session)
-3. **Phase 2** — Comercial
-4. **Phase 3** — Compras
-5. **Phase 4** — Administrativa
-6. **Phase 5** — Producción
-7. **Phase 6** — Postventa
-8. **Phase 7** — Delete `store.ts`
-
-Auth strategy: `hf_access` cookie (30min sliding) + `hf_refresh` cookie (8h, path `/api/auth/refresh`). Both `HttpOnly; Secure; SameSite=Strict`. Bcrypt replaces the mock hash.
-
-React Query is already installed (`@tanstack/react-query`). During migration, `useStore(selector)` calls are replaced domain-by-domain with `useQuery`/`useMutation` hooks from `src/hooks/api/`.
+**Remaining `useStore` usage:** zero route files. Only `src/lib/store.ts` itself and hooks in `src/hooks/use-store.ts` reference the store — these are safe to delete once the shared types are extracted.
 
 ---
 

@@ -1,8 +1,14 @@
 import { createFileRoute, Link, Navigate, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { ArrowLeft, Shield, KeyRound, Power, Unlock } from "lucide-react";
-import { store, type Area, AREAS_LABEL } from "@/lib/store";
-import { useStore, useUsuarioActivo } from "@/hooks/use-store";
+import { type Area, AREAS_LABEL } from "@/lib/store";
+import { useMe } from "@/hooks/api/use-auth";
+import {
+  useUsuario,
+  useActualizarUsuario,
+  useCambiarPasswordAdmin,
+  useDesbloquearUsuario,
+} from "@/hooks/api/use-admin";
 import {
   PageHeader,
   ErrorBanner,
@@ -17,32 +23,43 @@ export const Route = createFileRoute("/admin/usuarios/$id")({
 
 function UsuarioDetalle() {
   const { id } = Route.useParams();
-  const usuario = useUsuarioActivo();
+  const { data: usuario } = useMe();
   const navigate = useNavigate();
-  const u = useStore((s) => s.usuario(id));
+  const { data: u } = useUsuario(id);
 
-  const [nombre, setNombre] = useState(u?.nombre ?? "");
-  const [email, setEmail] = useState(u?.email ?? "");
-  const [areas, setAreas] = useState<Area[]>(u?.areas ?? ["comercial"]);
-  const [esAdmin, setEsAdmin] = useState(u?.esAdmin ?? false);
+  const actualizarUsuario = useActualizarUsuario();
+  const cambiarPassword = useCambiarPasswordAdmin();
+  const desbloquear = useDesbloquearUsuario();
+
+  const [nombre, setNombre] = useState("");
+  const [email, setEmail] = useState("");
+  const [areas, setAreas] = useState<Area[]>(["comercial"]);
+  const [esAdmin, setEsAdmin] = useState(false);
+  const [initialized, setInitialized] = useState(false);
+
   const [error, setError] = useState<string | null>(null);
   const [ok, setOk] = useState<string | null>(null);
-
   const [nuevaPwd, setNuevaPwd] = useState("");
   const [confirmPwd, setConfirmPwd] = useState("");
   const [errorPwd, setErrorPwd] = useState<string | null>(null);
   const [okPwd, setOkPwd] = useState<string | null>(null);
 
-  if (!usuario.esAdmin) return <Navigate to="/comercial" replace />;
+  if (!usuario?.esAdmin) return <Navigate to="/comercial" replace />;
+
+  if (u && !initialized) {
+    setNombre(u.nombre);
+    setEmail(u.email);
+    setAreas(u.areas);
+    setEsAdmin(u.esAdmin);
+    setInitialized(true);
+  }
+
   if (!u) {
     return (
       <div>
         <PageHeader
           title="Usuario no encontrado"
-          crumbs={[
-            { label: "Administración" },
-            { label: "Usuarios", to: "/admin/usuarios" },
-          ]}
+          crumbs={[{ label: "Administración" }, { label: "Usuarios", to: "/admin/usuarios" }]}
         />
         <Link to="/admin/usuarios">
           <Button variant="secondary">
@@ -53,9 +70,8 @@ function UsuarioDetalle() {
     );
   }
 
-  const esYoMismo = u.id === usuario.id;
-  const bloqueado =
-    !!u.bloqueadoHasta && new Date(u.bloqueadoHasta).getTime() > Date.now();
+  const esYoMismo = u.id === usuario?.id;
+  const bloqueado = !!u.bloqueadoHasta && new Date(u.bloqueadoHasta).getTime() > Date.now();
 
   const guardarDatos = (e: React.FormEvent) => {
     e.preventDefault();
@@ -63,11 +79,14 @@ function UsuarioDetalle() {
     setOk(null);
     if (nombre.trim().length < 2) return setError("El nombre es obligatorio.");
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return setError("Correo inválido.");
-    if (store.emailUsuarioExiste(email, u.id))
-      return setError("Otro usuario ya usa ese correo.");
     if (areas.length === 0) return setError("Selecciona al menos un área.");
-    store.actualizarUsuario(u.id, { nombre, email, areas, esAdmin });
-    setOk("Cambios guardados.");
+    actualizarUsuario.mutate(
+      { id: u.id, nombre, email, areas, esAdmin },
+      {
+        onSuccess: () => setOk("Cambios guardados."),
+        onError: (err: Error) => setError(err.message),
+      },
+    );
   };
 
   const cambiarPwd = (e: React.FormEvent) => {
@@ -76,16 +95,25 @@ function UsuarioDetalle() {
     setOkPwd(null);
     if (nuevaPwd.length < 6) return setErrorPwd("Mínimo 6 caracteres.");
     if (nuevaPwd !== confirmPwd) return setErrorPwd("Las contraseñas no coinciden.");
-    store.cambiarPassword(u.id, nuevaPwd);
-    setNuevaPwd("");
-    setConfirmPwd("");
-    setOkPwd("Contraseña actualizada.");
+    cambiarPassword.mutate(
+      { id: u.id, password: nuevaPwd },
+      {
+        onSuccess: () => {
+          setNuevaPwd("");
+          setConfirmPwd("");
+          setOkPwd("Contraseña actualizada.");
+        },
+        onError: (err: Error) => setErrorPwd(err.message),
+      },
+    );
   };
 
   const togglePower = () => {
     if (esYoMismo) return;
-    store.actualizarUsuario(u.id, { activo: !u.activo });
-    setOk(u.activo ? "Usuario desactivado." : "Usuario reactivado.");
+    actualizarUsuario.mutate(
+      { id: u.id, activo: !u.activo },
+      { onSuccess: () => setOk(u.activo ? "Usuario desactivado." : "Usuario reactivado.") },
+    );
   };
 
   return (
@@ -137,7 +165,6 @@ function UsuarioDetalle() {
       )}
 
       <div className="grid gap-4 md:grid-cols-2">
-        {/* Datos generales */}
         <form
           onSubmit={guardarDatos}
           className="space-y-4 rounded-lg border border-border bg-surface p-5"
@@ -149,18 +176,9 @@ function UsuarioDetalle() {
             <TextInput value={nombre} onChange={(e) => setNombre(e.target.value)} required />
           </Field>
           <Field label="Correo" required>
-            <TextInput
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-            />
+            <TextInput type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
           </Field>
-          <Field
-            label="Áreas asignadas"
-            required
-            hint="El usuario podrá editar registros de cada área marcada."
-          >
+          <Field label="Áreas asignadas" required hint="El usuario podrá editar registros de cada área marcada.">
             <AreasChecklist value={areas} onChange={setAreas} />
           </Field>
           <label className="flex items-start gap-2 text-sm">
@@ -180,11 +198,12 @@ function UsuarioDetalle() {
             </span>
           </label>
           <div className="flex justify-end">
-            <Button type="submit">Guardar cambios</Button>
+            <Button type="submit" disabled={actualizarUsuario.isPending}>
+              Guardar cambios
+            </Button>
           </div>
         </form>
 
-        {/* Cambio de contraseña + estado */}
         <div className="space-y-4">
           <form
             onSubmit={cambiarPwd}
@@ -215,7 +234,9 @@ function UsuarioDetalle() {
               />
             </Field>
             <div className="flex justify-end">
-              <Button type="submit">Actualizar contraseña</Button>
+              <Button type="submit" disabled={cambiarPassword.isPending}>
+                Actualizar contraseña
+              </Button>
             </div>
           </form>
 
@@ -228,7 +249,7 @@ function UsuarioDetalle() {
               <Button
                 variant={u.activo ? "danger" : "primary"}
                 onClick={togglePower}
-                disabled={esYoMismo}
+                disabled={esYoMismo || actualizarUsuario.isPending}
                 type="button"
               >
                 <Power className="h-4 w-4" />
@@ -238,10 +259,10 @@ function UsuarioDetalle() {
                 <Button
                   variant="secondary"
                   type="button"
-                  onClick={() => {
-                    store.desbloquearUsuario(u.id);
-                    setOk("Bloqueo levantado.");
-                  }}
+                  disabled={desbloquear.isPending}
+                  onClick={() =>
+                    desbloquear.mutate(u.id, { onSuccess: () => setOk("Bloqueo levantado.") })
+                  }
                 >
                   <Unlock className="h-4 w-4" /> Desbloquear acceso
                 </Button>

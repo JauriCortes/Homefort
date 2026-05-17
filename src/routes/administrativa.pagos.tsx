@@ -1,41 +1,60 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { Plus } from "lucide-react";
-import { store, formatCOP, type TipoPago } from "@/lib/store";
-import { useStore, useUsuarioActivo } from "@/hooks/use-store";
-import { PageHeader, EmptyState, ErrorBanner, SuccessBanner } from "@/components/ui-bits";
+import { useMe } from "@/hooks/api/use-auth";
+import { useProyectos } from "@/hooks/api/use-comercial";
+import { useFacturas, usePagos, useRegistrarPago, useSaldoFactura } from "@/hooks/api/use-administrativa";
+import type { Pago } from "@/hooks/api/use-administrativa";
+import { PageHeader, EmptyState, ErrorBanner } from "@/components/ui-bits";
 import { Button, Field, TextInput, Select } from "@/components/form-bits";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/administrativa/pagos")({
   component: PagosPage,
 });
 
+function formatCOP(n: number) {
+  return new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", maximumFractionDigits: 0 }).format(n);
+}
+
+function SaldoDisplay({ facturaId }: { facturaId: string }) {
+  const { data } = useSaldoFactura(facturaId);
+  if (!data) return null;
+  return <div className="text-sm text-muted-foreground">Saldo actual: {formatCOP(data.saldo)}</div>;
+}
+
 function PagosPage() {
-  const usuario = useUsuarioActivo();
-  const pagos = useStore((s) => s.pagos);
-  const facturas = useStore((s) => s.facturas);
-  const proyectos = useStore((s) => s.proyectos);
+  const { data: usuario } = useMe();
+  const { data: pagos = [] } = usePagos();
+  const { data: facturas = [] } = useFacturas();
+  const { data: proyectos = [] } = useProyectos();
+  const registrarPago = useRegistrarPago();
+
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ facturaId: "", monto: 0, tipo: "Transferencia" as TipoPago, referencia: "" });
+  const [form, setForm] = useState({ facturaId: "", monto: 0, tipo: "Transferencia" as Pago["tipo"], referencia: "" });
   const [error, setError] = useState<string | null>(null);
-  const [ok, setOk] = useState<string | null>(null);
-  const puedeEditar = usuario.esAdmin || usuario.areas.includes("administrativa");
 
+  const puedeEditar = usuario?.esAdmin || usuario?.areas?.includes("administrativa");
   const facturasActivas = facturas.filter((f) => f.estado !== "Pagada" && f.estado !== "Anulada");
-  const saldoFactura = form.facturaId ? store.saldoFactura(form.facturaId) : 0;
 
-  const guardar = (e: React.FormEvent) => {
+  const guardar = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     if (!form.facturaId) return setError("Selecciona una factura.");
     if (form.monto <= 0) return setError("El monto debe ser mayor a 0.");
-    const fac = facturas.find((f) => f.id === form.facturaId);
-    if (!fac) return;
-    store.registrarPago({ facturaId: form.facturaId, proyectoId: fac.proyectoId, fecha: new Date().toISOString().slice(0, 10), monto: Number(form.monto), tipo: form.tipo, referencia: form.referencia || undefined });
-    setOk("Pago registrado.");
-    setShowForm(false);
-    setForm({ facturaId: "", monto: 0, tipo: "Transferencia", referencia: "" });
-    setTimeout(() => setOk(null), 2500);
+    try {
+      await registrarPago.mutateAsync({
+        facturaId: form.facturaId,
+        monto: Number(form.monto),
+        tipo: form.tipo,
+        referencia: form.referencia || undefined,
+      });
+      toast.success("Pago registrado.");
+      setShowForm(false);
+      setForm({ facturaId: "", monto: 0, tipo: "Transferencia", referencia: "" });
+    } catch (err: any) {
+      toast.error(err?.message ?? "Error al registrar el pago.");
+    }
   };
 
   return (
@@ -43,27 +62,31 @@ function PagosPage() {
       <PageHeader
         title="Pagos"
         crumbs={[{ label: "Administrativa" }, { label: "Pagos" }]}
-        actions={puedeEditar ? <Button onClick={() => setShowForm((v) => !v)}><Plus className="h-4 w-4" /> {showForm ? "Cancelar" : "Registrar pago"}</Button> : undefined}
+        actions={
+          puedeEditar ? (
+            <Button onClick={() => setShowForm((v) => !v)}>
+              <Plus className="h-4 w-4" /> {showForm ? "Cancelar" : "Registrar pago"}
+            </Button>
+          ) : undefined
+        }
       />
-      {ok && <SuccessBanner>{ok}</SuccessBanner>}
       {showForm && (
         <form onSubmit={guardar} className="mb-4 space-y-4 rounded-lg border border-border bg-surface p-4">
           {error && <ErrorBanner>{error}</ErrorBanner>}
           <Field label="Factura" required>
             <Select value={form.facturaId} onChange={(e) => setForm({ ...form, facturaId: e.target.value })}>
               <option value="">Selecciona...</option>
-              {facturasActivas.map((f) => {
-                const saldo = store.saldoFactura(f.id);
-                return <option key={f.id} value={f.id}>{f.numero} - saldo: {formatCOP(saldo)}</option>;
-              })}
+              {facturasActivas.map((f) => (
+                <option key={f.id} value={f.id}>{f.numero} — {formatCOP(f.monto)}</option>
+              ))}
             </Select>
           </Field>
-          {form.facturaId && <div className="text-sm text-muted-foreground">Saldo actual: {formatCOP(saldoFactura)}</div>}
+          {form.facturaId && <SaldoDisplay facturaId={form.facturaId} />}
           <Field label="Monto" required>
             <TextInput type="number" min={0} step="1" value={form.monto || ""} onChange={(e) => setForm({ ...form, monto: Number(e.target.value) })} />
           </Field>
           <Field label="Tipo de pago" required>
-            <Select value={form.tipo} onChange={(e) => setForm({ ...form, tipo: e.target.value as TipoPago })}>
+            <Select value={form.tipo} onChange={(e) => setForm({ ...form, tipo: e.target.value as Pago["tipo"] })}>
               <option>Transferencia</option>
               <option>Efectivo</option>
               <option>Cheque</option>
@@ -75,7 +98,7 @@ function PagosPage() {
           </Field>
           <div className="flex justify-end gap-2">
             <Button variant="secondary" type="button" onClick={() => setShowForm(false)}>Cancelar</Button>
-            <Button type="submit">Registrar pago</Button>
+            <Button type="submit" disabled={registrarPago.isPending}>Registrar pago</Button>
           </div>
         </form>
       )}

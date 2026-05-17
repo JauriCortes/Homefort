@@ -338,20 +338,46 @@ comercial.patch("/proyectos/:id/estado", requireAuth, requireArea("comercial"), 
       .limit(1);
 
     if (ultimaCot) {
-      const cotItems = JSON.parse(ultimaCot.items) as {
-        descripcion: string;
-        cantidad: number;
-      }[];
-      await db.insert(solicitudesCompra).values({
-        id: nuevoId("sc"),
-        proyectoId: proyecto.id,
-        fechaCreacion: hoy,
-        estado: "pendiente",
-        items: JSON.stringify(
-          cotItems.map((it) => ({ descripcion: it.descripcion, cantidad: it.cantidad })),
-        ),
-        generadaAutomaticamente: true,
-      });
+      const cotItems = JSON.parse(ultimaCot.items) as { descripcion: string; cantidad: number }[];
+      const [mats, movs] = await Promise.all([
+        db.select().from(materialesBase),
+        db.select().from(movimientosInventario),
+      ]);
+
+      // Calculate available stock per material
+      const stockMap = new Map<string, number>();
+      for (const mat of mats) {
+        let disp = 0;
+        for (const mov of movs.filter((m) => m.materialId === mat.id)) {
+          if (mov.tipo === "entrada" || mov.tipo === "ajuste") disp += mov.cantidad;
+          else if (mov.tipo === "bloqueo") disp -= mov.cantidad;
+          // consumo already left bloqueado, not disponible
+        }
+        stockMap.set(mat.id, Math.max(0, disp));
+      }
+
+      // Match cotizacion items to materials by name and find insufficient stock
+      const itemsConFalta: { materialId: string; cantidadFaltante: number }[] = [];
+      for (const it of cotItems) {
+        const nombre = it.descripcion.trim().toLowerCase();
+        const mat = mats.find((m) => m.nombre.toLowerCase() === nombre);
+        if (!mat) continue;
+        const disponible = stockMap.get(mat.id) ?? 0;
+        if (disponible < it.cantidad) {
+          itemsConFalta.push({ materialId: mat.id, cantidadFaltante: it.cantidad - disponible });
+        }
+      }
+
+      if (itemsConFalta.length > 0) {
+        await db.insert(solicitudesCompra).values({
+          id: nuevoId("sc"),
+          proyectoId: proyecto.id,
+          fechaCreacion: hoy,
+          estado: "pendiente",
+          items: JSON.stringify(itemsConFalta),
+          generadaAutomaticamente: true,
+        });
+      }
     }
   }
 
@@ -378,12 +404,27 @@ comercial.post(
   requireAuth,
   requireArea("comercial"),
   async (c) => {
-    const { contenido, actualizadoPor } = await c.req.json<{
-      contenido: string;
+    const body = await c.req.json<{
+      medidas?: string;
+      materiales?: string;
+      acabados?: string;
+      observaciones?: string;
       actualizadoPor?: string;
     }>();
-    if (!contenido?.trim()) {
-      return c.json({ error: "contenido es obligatorio" }, 400);
+    const medidas = body.medidas?.trim() ?? "";
+    const materiales = body.materiales?.trim() ?? "";
+    const acabados = body.acabados?.trim() ?? "";
+    const observaciones = body.observaciones?.trim() ?? "";
+    const contenido = [
+      medidas && `Medidas: ${medidas}`,
+      materiales && `Materiales: ${materiales}`,
+      acabados && `Acabados: ${acabados}`,
+      observaciones && `Observaciones: ${observaciones}`,
+    ]
+      .filter(Boolean)
+      .join("\n");
+    if (!contenido) {
+      return c.json({ error: "Al menos un campo de especificación es obligatorio" }, 400);
     }
     const db = drizzle(c.env.DB);
     const [proyecto] = await db
@@ -402,13 +443,13 @@ comercial.post(
       id: nuevoId("esp"),
       proyectoId: proyecto.id,
       version: especs.length + 1,
-      contenido: contenido.trim(),
-      medidas: "",
-      materiales: "",
-      acabados: "",
-      observaciones: "",
+      contenido,
+      medidas,
+      materiales,
+      acabados,
+      observaciones,
       actualizadoEn: new Date().toISOString().slice(0, 10),
-      actualizadoPor: actualizadoPor ?? "—",
+      actualizadoPor: body.actualizadoPor ?? "—",
     };
     await db.insert(especificaciones).values(nueva);
     await db
